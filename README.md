@@ -195,6 +195,43 @@ Le contrat cible propose pour Elite Turf est documente ici :
 
 - [docs/contrat-api-publication-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\contrat-api-publication-elite-turf.md)
 
+### Simuler localement l'API Elite Turf
+
+Le projet expose un endpoint local de test compatible avec le contrat Elite Turf :
+
+- `POST /api/test/elite-turf/publications`
+
+Pour tester le provider `api-custom` en local :
+
+1. configurer `.env` ainsi :
+   - `API_CUSTOM_BASE_URL=http://localhost:3000`
+   - `API_CUSTOM_TOKEN=test-token`
+   - `API_CUSTOM_ENDPOINT=/api/test/elite-turf/publications?mode=success`
+2. redemarrer `npm run dev`
+3. creer ou editer un `publication_job` avec la cible `API custom`
+4. lancer `Controler`
+5. lancer `Publier`
+
+### Modes de test disponibles
+
+- `mode=success`
+  - reponse 201 avec publication acceptee
+- `mode=business_error`
+  - reponse 409 avec erreur metier simulee
+- `mode=validation_error`
+  - reponse 422 avec erreur de validation simulee
+- `mode=technical_error`
+  - reponse 500 avec erreur technique simulee
+
+### Exemple de configuration locale
+
+```env
+API_CUSTOM_BASE_URL="http://localhost:3000"
+API_CUSTOM_TOKEN="test-token"
+API_CUSTOM_ENDPOINT="/api/test/elite-turf/publications?mode=success"
+API_CUSTOM_DEFAULT_STATUS="draft"
+```
+
 ## Strategie de relations et suppressions
 
 - les relations critiques vers `races` sont protegees en base par `ON DELETE RESTRICT`
