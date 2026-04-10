@@ -36,6 +36,10 @@ Variables principales :
 - `WORDPRESS_APP_PASSWORD` : mot de passe applicatif WordPress
 - `WORDPRESS_POSTS_ENDPOINT` : endpoint REST des articles, par defaut `/wp-json/wp/v2/posts`
 - `WORDPRESS_DEFAULT_STATUS` : statut WordPress du post cree (`draft`, `publish`, `pending`, `private`)
+- `API_CUSTOM_BASE_URL` : URL racine de l'API custom cible
+- `API_CUSTOM_TOKEN` : token Bearer de l'API custom
+- `API_CUSTOM_ENDPOINT` : endpoint de publication custom, par defaut `/publications`
+- `API_CUSTOM_DEFAULT_STATUS` : statut transmis au payload custom (`draft`, `publish`, `pending`, `private`)
 
 3. Generer Prisma puis executer la migration :
 
@@ -147,6 +151,45 @@ npm run dev
 - en cas d'erreur reseau, un message explicite `Erreur reseau WordPress` est renvoye
 - si `WORDPRESS_DEFAULT_STATUS=draft`, le job local passe tout de meme en `PUBLISHED` des qu'un post WordPress est cree avec succes
   - dans le MVP actuel, `PUBLISHED` signifie "transmis avec succes au systeme cible"
+
+## Publication API custom
+
+- `api-custom` est maintenant un vrai provider stub structure au meme niveau architectural que `wordpress-rest`
+- si `API_CUSTOM_BASE_URL` et `API_CUSTOM_TOKEN` sont renseignes, le provider peut envoyer une requete POST reelle vers l'endpoint custom configure
+- si la configuration est absente ou incomplete, le systeme conserve un comportement sur et repasse en mode mock
+- le payload envoye est structure pour preparer une future API Elite Turf :
+  - `publicationJobId`
+  - `provider`
+  - `target`
+  - `mode`
+  - `publicationStatus`
+  - `article` avec `title`, `body`, `excerpt`
+  - `race` avec `id`, `raceName`, `venue`, `raceTime`
+
+### Comportement du stub `api-custom`
+
+- en mode non configure :
+  - l'UI affiche `Mode prepare`
+  - la publication repasse sur le fallback mock pour ne rien casser localement
+- en mode configure :
+  - le provider tente un POST HTTP avec `Authorization: Bearer <token>`
+  - la reponse attend au minimum une reference de publication :
+    - `url`
+    - ou `reference`
+    - ou `id`
+  - si aucune reference n'est retournee, le job passe en `FAILED`
+
+### Brancher plus tard une vraie API Elite Turf
+
+1. definir le contrat exact de l'endpoint cible
+2. ajuster si besoin la structure du payload dans `api-custom-provider.ts`
+3. renseigner dans `.env` :
+   - `API_CUSTOM_BASE_URL`
+   - `API_CUSTOM_TOKEN`
+   - `API_CUSTOM_ENDPOINT`
+   - optionnellement `API_CUSTOM_DEFAULT_STATUS`
+4. redemarrer `npm run dev`
+5. tester une publication avec la cible `API custom`
 
 ## Strategie de relations et suppressions
 

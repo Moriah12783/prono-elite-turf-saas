@@ -2,6 +2,8 @@ import { PublicationStatus } from "@prisma/client";
 
 import { PublicationExecutionResult, PublicationProviderInput } from "@/domain/types";
 
+import { getApiCustomConfig } from "./api-custom-config";
+import { ApiCustomPublicationProvider } from "./api-custom-provider";
 import { WordPressPublicationProvider } from "./wordpress-provider";
 import { getWordPressConfig } from "./wordpress-config";
 import { normalizePublicationTarget } from "./publication-targets";
@@ -14,13 +16,11 @@ class MockPublicationProvider implements PublicationProvider {
   async publish(input: PublicationProviderInput): Promise<PublicationExecutionResult> {
     const normalizedTarget = normalizePublicationTarget(input.target);
 
-    if (!normalizedTarget || normalizedTarget === "api-custom") {
+    if (!normalizedTarget) {
       return {
         success: false,
         status: PublicationStatus.FAILED,
-        errorMessage: normalizedTarget === "api-custom"
-          ? "Le provider api-custom est prepare mais pas encore branche."
-          : "Aucun adaptateur mock n'est disponible pour cette cible.",
+        errorMessage: "Aucun adaptateur mock n'est disponible pour cette cible.",
         externalReference: undefined,
         providerKey: "mock",
         deliveryMode: "mock"
@@ -43,6 +43,10 @@ export function resolvePublicationProvider(target: string): PublicationProvider 
 
   if (normalizedTarget === "wordpress-rest" && getWordPressConfig().enabled) {
     return new WordPressPublicationProvider();
+  }
+
+  if (normalizedTarget === "api-custom" && getApiCustomConfig().enabled) {
+    return new ApiCustomPublicationProvider();
   }
 
   return new MockPublicationProvider();

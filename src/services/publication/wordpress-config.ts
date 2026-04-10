@@ -1,5 +1,3 @@
-import { PublicationTargetKey } from "./publication-targets";
-
 const ALLOWED_WORDPRESS_STATUSES = new Set(["draft", "publish", "pending", "private"]);
 
 export type WordPressConfig = {
@@ -39,16 +37,4 @@ export function getWordPressConfig(): WordPressConfig {
     defaultStatus,
     missingFields
   };
-}
-
-export function getPublicationTargetRuntimeMode(target: PublicationTargetKey): "mock" | "real" | "prepared" {
-  if (target === "wordpress-rest") {
-    return getWordPressConfig().enabled ? "real" : "mock";
-  }
-
-  if (target === "api-custom") {
-    return "prepared";
-  }
-
-  return "mock";
 }

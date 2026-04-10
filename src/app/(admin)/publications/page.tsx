@@ -16,7 +16,7 @@ import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { parsePublicationDeliveryMeta, parsePublicationPayload } from "@/lib/publication-payload";
 import { asStringValue } from "@/lib/validation";
 import { getPublicationById, getPublicationRows, getRacesForSelect } from "@/services/backoffice-service";
-import { getPublicationTargetRuntimeMode } from "@/services/publication/wordpress-config";
+import { getPublicationTargetRuntimeMode } from "@/services/publication/publication-runtime";
 import { normalizePublicationTarget } from "@/services/publication/publication-targets";
 
 import {
