@@ -1,6 +1,9 @@
-﻿import { PublicationStatus } from "@prisma/client";
+import { PublicationStatus } from "@prisma/client";
 
 import { PublicationExecutionResult, PublicationProviderInput } from "@/domain/types";
+
+import { WordPressPublicationProvider } from "./wordpress-provider";
+import { getWordPressConfig, isWordPressTarget } from "./wordpress-config";
 
 export interface PublicationProvider {
   publish(input: PublicationProviderInput): Promise<PublicationExecutionResult>;
@@ -15,7 +18,9 @@ class MockPublicationProvider implements PublicationProvider {
         success: false,
         status: PublicationStatus.FAILED,
         errorMessage: "Aucun adaptateur mock n'est disponible pour cette cible.",
-        externalReference: undefined
+        externalReference: undefined,
+        providerKey: "mock",
+        deliveryMode: "mock"
       };
     }
 
@@ -23,12 +28,21 @@ class MockPublicationProvider implements PublicationProvider {
       success: true,
       status: PublicationStatus.PUBLISHED,
       publishedAt: new Date(),
-      externalReference: `mock-${input.publicationJobId}`
+      externalReference: `mock-${input.publicationJobId}`,
+      providerKey: "mock",
+      deliveryMode: "mock"
     };
   }
 }
 
 export function resolvePublicationProvider(target: string): PublicationProvider {
-  void target;
+  if (isWordPressTarget(target)) {
+    const config = getWordPressConfig();
+
+    if (config.enabled) {
+      return new WordPressPublicationProvider();
+    }
+  }
+
   return new MockPublicationProvider();
 }

@@ -114,7 +114,9 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
       errorMessage: result.errorMessage ?? null,
       payloadJson: {
         ...payload,
-        externalReference: result.externalReference ?? null
+        externalReference: result.externalReference ?? null,
+        providerKey: result.providerKey ?? null,
+        deliveryMode: result.deliveryMode ?? null
       }
     }
   });
@@ -130,7 +132,9 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
       metadataJson: {
         status: updatedJob.status,
         publishedAt: updatedJob.publishedAt,
-        errorMessage: updatedJob.errorMessage
+        errorMessage: updatedJob.errorMessage,
+        providerKey: result.providerKey ?? null,
+        deliveryMode: result.deliveryMode ?? null
       }
     });
   }

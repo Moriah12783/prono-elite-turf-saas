@@ -31,6 +31,11 @@ Variables principales :
 - `ADMIN_NAME` : nom du compte admin seed
 - `ADMIN_EMAIL` : email du compte admin seed
 - `ADMIN_PASSWORD` : mot de passe du compte admin seed
+- `WORDPRESS_BASE_URL` : URL racine de l'instance WordPress cible
+- `WORDPRESS_USERNAME` : compte WordPress autorise a publier via REST
+- `WORDPRESS_APP_PASSWORD` : mot de passe applicatif WordPress
+- `WORDPRESS_POSTS_ENDPOINT` : endpoint REST des articles, par defaut `/wp-json/wp/v2/posts`
+- `WORDPRESS_DEFAULT_STATUS` : statut WordPress du post cree (`draft`, `publish`, `pending`, `private`)
 
 3. Generer Prisma puis executer la migration :
 
@@ -89,6 +94,59 @@ npm run dev
 - passage automatique en `READY` ou `BLOCKED`
 - tentative de publication mock via une couche de service decouplee
 - retour en `PUBLISHED` ou `FAILED`
+
+## Publication WordPress REST API
+
+- la couche de publication conserve un provider abstrait, un service de publication et un workflow de pre-validation
+- si la cible ressemble a WordPress et que la configuration WordPress est complete, le provider `wordpress-rest` est utilise
+- si la configuration WordPress est absente ou incomplete, le systeme repasse automatiquement en mode mock sans publier reellement
+- le fallback mock conserve donc le workflow local actuel et evite toute diffusion accidentelle
+
+### Mode mock
+
+- actif par defaut si les variables WordPress ne sont pas renseignees
+- une publication reussie retourne une reference du type `mock-<publicationJobId>`
+- utile pour tester le workflow complet localement sans dependre d'une instance externe
+
+### Mode WordPress reel
+
+- active uniquement si `WORDPRESS_BASE_URL`, `WORDPRESS_USERNAME` et `WORDPRESS_APP_PASSWORD` sont renseignes
+- le provider appelle l'endpoint REST WordPress des posts avec authentification Basic basee sur le mot de passe applicatif
+- le payload envoye est un article standard avec :
+  - `title`
+  - `content`
+  - `excerpt`
+  - `status`
+- le contenu inclut un rappel de la course puis le corps editorial formate en HTML simple
+
+### Tester localement sans casser le fonctionnement actuel
+
+1. laisser les variables WordPress vides pour rester en mode mock
+2. creer ou editer un `publication_job`
+3. lancer `Controler`
+4. lancer `Publier`
+5. verifier qu'une reference `mock-*` est enregistree dans le payload
+
+### Brancher une vraie instance WordPress
+
+1. creer un utilisateur ou utiliser un compte editeur/admin WordPress
+2. generer un mot de passe applicatif WordPress pour ce compte
+3. renseigner dans `.env` :
+   - `WORDPRESS_BASE_URL`
+   - `WORDPRESS_USERNAME`
+   - `WORDPRESS_APP_PASSWORD`
+   - optionnellement `WORDPRESS_POSTS_ENDPOINT`
+   - optionnellement `WORDPRESS_DEFAULT_STATUS`
+4. redemarrer `npm run dev`
+5. relancer une publication depuis l'admin
+
+### Comportement et erreurs
+
+- si WordPress retourne une erreur HTTP, le job passe en `FAILED` avec le message REST recupere quand il existe
+- si la reponse est invalide ou sans identifiant de post, le job passe aussi en `FAILED`
+- en cas d'erreur reseau, un message explicite `Erreur reseau WordPress` est renvoye
+- si `WORDPRESS_DEFAULT_STATUS=draft`, le job local passe tout de meme en `PUBLISHED` des qu'un post WordPress est cree avec succes
+  - dans le MVP actuel, `PUBLISHED` signifie "transmis avec succes au systeme cible"
 
 ## Strategie de relations et suppressions
 

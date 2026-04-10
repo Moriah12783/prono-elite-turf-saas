@@ -49,6 +49,8 @@ export type PublicationExecutionResult = {
   publishedAt?: Date;
   errorMessage?: string;
   externalReference?: string;
+  providerKey?: string;
+  deliveryMode?: "mock" | "real";
 };
 
 export type PublicationProviderInput = {
