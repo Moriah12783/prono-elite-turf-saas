@@ -26,6 +26,7 @@ export const RACE_STATUS_OPTIONS = [
 export const PUBLICATION_STATUS_OPTIONS = [
   PublicationStatus.DRAFT,
   PublicationStatus.READY,
+  PublicationStatus.BLOCKED,
   PublicationStatus.PUBLISHED,
   PublicationStatus.FAILED
 ] as const;

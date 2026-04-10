@@ -9,7 +9,10 @@ export async function getDashboardMetrics() {
     prisma.prediction.count(),
     prisma.publicationJob.count({ where: { status: "READY" } }),
     prisma.publicationJob.count({ where: { status: "PUBLISHED" } }),
-    prisma.auditLog.count({ where: { actionType: { in: ["DELETE"] } } })
+    Promise.all([
+      prisma.publicationJob.count({ where: { status: { in: ["FAILED", "BLOCKED"] } } }),
+      prisma.prediction.count({ where: { approvalStatus: "REJECTED" } })
+    ]).then(([badPublicationJobs, rejectedPredictions]) => badPublicationJobs + rejectedPredictions)
   ]);
 
   return [
@@ -18,7 +21,7 @@ export async function getDashboardMetrics() {
     { label: "Pronostics generes", value: generatedPredictions.toString(), detail: "fiches pronostic disponibles" },
     { label: "Publications pretes", value: readyPublications.toString(), detail: "eligibles a l'envoi" },
     { label: "Publications effectuees", value: publishedPublications.toString(), detail: "deja diffusees" },
-    { label: "Alertes / anomalies", value: anomalies.toString(), detail: "traces a examiner" }
+    { label: "Alertes / anomalies", value: anomalies.toString(), detail: "publications bloquees/en echec ou pronostics rejetes" }
   ];
 }
 
@@ -49,7 +52,8 @@ export async function getRacesForSelect() {
       id: true,
       raceName: true,
       venue: true,
-      raceTime: true
+      raceTime: true,
+      status: true
     },
     orderBy: [{ raceDate: "asc" }, { raceTime: "asc" }]
   });
@@ -138,14 +142,27 @@ export async function getPublicationRows() {
     include: {
       race: {
         select: {
+          id: true,
           raceName: true,
           venue: true,
-          raceTime: true
+          raceTime: true,
+          status: true,
+          prediction: {
+            select: {
+              id: true,
+              approvalStatus: true
+            }
+          }
         }
       }
     },
     orderBy: [{ createdAt: "desc" }]
   });
+}
+
+export async function getPublicationById(id: string) {
+  const prisma = getPrisma();
+  return prisma.publicationJob.findUnique({ where: { id } });
 }
 
 export async function getAuditLogs() {

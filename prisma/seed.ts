@@ -8,7 +8,8 @@
   RaceStatus,
   ResultOfficialStatus,
   RunnerStatus,
-  UserRole
+  UserRole,
+  Prisma
 } from "@prisma/client";
 
 import { getSeedAdminConfig } from "../src/lib/auth-config";
@@ -60,7 +61,7 @@ async function main() {
       raceDateTime: new Date("2026-04-10T12:35:00.000Z"),
       discipline: "Trot attele",
       distance: 2700,
-      status: RaceStatus.VALIDATED,
+      status: RaceStatus.APPROVED,
       qualityScore: 84,
       publicationStatus: PublicationStatus.READY
     },
@@ -75,7 +76,7 @@ async function main() {
       distance: 3600,
       status: RaceStatus.PENDING_VALIDATION,
       qualityScore: 61,
-      publicationStatus: PublicationStatus.DRAFT
+      publicationStatus: PublicationStatus.BLOCKED
     },
     {
       externalSourceId: "R2C1-2026-04-10",
@@ -90,9 +91,9 @@ async function main() {
       qualityScore: 92,
       publicationStatus: PublicationStatus.PUBLISHED
     }
-  ];
+  ] satisfies Prisma.RaceCreateInput[];
 
-  const races = [] as { id: string; externalSourceId: string | null }[];
+  const races: Array<{ id: string }> = [];
 
   for (const definition of raceDefinitions) {
     const race = await prisma.race.upsert({
@@ -101,107 +102,26 @@ async function main() {
       create: definition
     });
 
-    races.push({ id: race.id, externalSourceId: race.externalSourceId });
+    races.push({ id: race.id });
   }
 
   const [race1, race2, race3] = races;
 
   const runnerDefinitions = [
-    {
-      raceId: race1.id,
-      number: 1,
-      horseName: "Icare du Loft",
-      jockeyName: "E. Raffin",
-      trainerName: "M. Abrivard",
-      odds: "4.80",
-      isNonRunner: false,
-      status: RunnerStatus.CONFIRMED,
-      rawDataJson: { music: "1a2a3a", corde: 2 }
-    },
-    {
-      raceId: race1.id,
-      number: 4,
-      horseName: "Jasmin d'Or",
-      jockeyName: "Y. Lebourgeois",
-      trainerName: "S. Ernault",
-      odds: "8.30",
-      isNonRunner: false,
-      status: RunnerStatus.DECLARED,
-      rawDataJson: { music: "4a1aDa", corde: 5 }
-    },
-    {
-      raceId: race1.id,
-      number: 7,
-      horseName: "King of Turf",
-      jockeyName: "F. Nivard",
-      trainerName: "L. Baudron",
-      odds: "6.10",
-      isNonRunner: true,
-      status: RunnerStatus.NON_RUNNER,
-      rawDataJson: { note: "non-partant du matin" }
-    },
-    {
-      raceId: race2.id,
-      number: 2,
-      horseName: "Lutin Noir",
-      jockeyName: "K. Nabet",
-      trainerName: "D. Cottin",
-      odds: "5.20",
-      isNonRunner: false,
-      status: RunnerStatus.DECLARED,
-      rawDataJson: { music: "2h4h1h" }
-    },
-    {
-      raceId: race2.id,
-      number: 5,
-      horseName: "Mistral Bleu",
-      jockeyName: "J. Reveley",
-      trainerName: "F. Nicolle",
-      odds: "7.40",
-      isNonRunner: false,
-      status: RunnerStatus.DECLARED,
-      rawDataJson: { music: "3h5h2h" }
-    },
-    {
-      raceId: race3.id,
-      number: 3,
-      horseName: "Nova de Feu",
-      jockeyName: "C. Soumillon",
-      trainerName: "A. Fabre",
-      odds: "3.60",
-      isNonRunner: false,
-      status: RunnerStatus.CONFIRMED,
-      rawDataJson: { music: "1p1p2p" }
-    },
-    {
-      raceId: race3.id,
-      number: 8,
-      horseName: "Silver Track",
-      jockeyName: "M. Guyon",
-      trainerName: "H. Pantall",
-      odds: "4.90",
-      isNonRunner: false,
-      status: RunnerStatus.CONFIRMED,
-      rawDataJson: { music: "2p4p1p" }
-    }
+    { raceId: race1.id, number: 1, horseName: "Icare du Loft", jockeyName: "E. Raffin", trainerName: "M. Abrivard", odds: new Prisma.Decimal("4.80"), isNonRunner: false, status: RunnerStatus.CONFIRMED, rawDataJson: { music: "1a2a3a", corde: 2 } },
+    { raceId: race1.id, number: 4, horseName: "Jasmin d'Or", jockeyName: "Y. Lebourgeois", trainerName: "S. Ernault", odds: new Prisma.Decimal("8.30"), isNonRunner: false, status: RunnerStatus.DECLARED, rawDataJson: { music: "4a1aDa", corde: 5 } },
+    { raceId: race1.id, number: 7, horseName: "King of Turf", jockeyName: "F. Nivard", trainerName: "L. Baudron", odds: new Prisma.Decimal("6.10"), isNonRunner: true, status: RunnerStatus.NON_RUNNER, rawDataJson: { note: "non-partant du matin" } },
+    { raceId: race2.id, number: 2, horseName: "Lutin Noir", jockeyName: "K. Nabet", trainerName: "D. Cottin", odds: new Prisma.Decimal("5.20"), isNonRunner: false, status: RunnerStatus.DECLARED, rawDataJson: { music: "2h4h1h" } },
+    { raceId: race2.id, number: 5, horseName: "Mistral Bleu", jockeyName: "J. Reveley", trainerName: "F. Nicolle", odds: new Prisma.Decimal("7.40"), isNonRunner: false, status: RunnerStatus.DECLARED, rawDataJson: { music: "3h5h2h" } },
+    { raceId: race3.id, number: 3, horseName: "Nova de Feu", jockeyName: "C. Soumillon", trainerName: "A. Fabre", odds: new Prisma.Decimal("3.60"), isNonRunner: false, status: RunnerStatus.CONFIRMED, rawDataJson: { music: "1p1p2p" } },
+    { raceId: race3.id, number: 8, horseName: "Silver Track", jockeyName: "M. Guyon", trainerName: "H. Pantall", odds: new Prisma.Decimal("4.90"), isNonRunner: false, status: RunnerStatus.CONFIRMED, rawDataJson: { music: "2p4p1p" } }
   ];
 
   for (const runner of runnerDefinitions) {
     await prisma.runner.upsert({
-      where: {
-        raceId_number: {
-          raceId: runner.raceId,
-          number: runner.number
-        }
-      },
-      update: {
-        ...runner,
-        odds: runner.odds
-      },
-      create: {
-        ...runner,
-        odds: runner.odds
-      }
+      where: { raceId_number: { raceId: runner.raceId, number: runner.number } },
+      update: runner,
+      create: runner
     });
   }
 
@@ -288,95 +208,72 @@ async function main() {
 
   await prisma.result.upsert({
     where: { raceId: race3.id },
-    update: {
-      officialArrival: ["3", "8", "6"],
-      officialStatus: ResultOfficialStatus.OFFICIAL,
-      importedAt: new Date("2026-04-10T16:10:00.000Z")
-    },
-    create: {
-      raceId: race3.id,
-      officialArrival: ["3", "8", "6"],
-      officialStatus: ResultOfficialStatus.OFFICIAL,
-      importedAt: new Date("2026-04-10T16:10:00.000Z")
-    }
+    update: { officialArrival: ["3", "8", "6"], officialStatus: ResultOfficialStatus.OFFICIAL, importedAt: new Date("2026-04-10T16:10:00.000Z") },
+    create: { raceId: race3.id, officialArrival: ["3", "8", "6"], officialStatus: ResultOfficialStatus.OFFICIAL, importedAt: new Date("2026-04-10T16:10:00.000Z") }
   });
 
   await prisma.result.upsert({
     where: { raceId: race1.id },
-    update: {
-      officialArrival: [],
-      officialStatus: ResultOfficialStatus.PENDING
-    },
-    create: {
-      raceId: race1.id,
-      officialArrival: [],
-      officialStatus: ResultOfficialStatus.PENDING
-    }
+    update: { officialArrival: [], officialStatus: ResultOfficialStatus.PENDING, importedAt: null },
+    create: { raceId: race1.id, officialArrival: [], officialStatus: ResultOfficialStatus.PENDING, importedAt: null }
   });
 
-  await prisma.publicationJob.deleteMany({});`r`n  await prisma.auditLog.deleteMany({});`r`n`r`n  await prisma.publicationJob.createMany({
+  await prisma.publicationJob.deleteMany({});
+  await prisma.auditLog.deleteMany({});
+
+  await prisma.publicationJob.createMany({
     data: [
       {
         raceId: race1.id,
         target: "WordPress REST API",
         mode: PublicationMode.VALIDATED,
-        payloadJson: { title: "Pronostic R1C3", slug: "r1c3-vincennes" },
-        status: PublicationStatus.READY
+        payloadJson: {
+          title: "Pronostic R1C3 Vincennes",
+          excerpt: "Base solide et ticket offensif.",
+          body: "Icare du Loft s'impose comme l'appui principal. Notre base reste le 4 avec un profil de jeu agressif sur le 6 et le 8."
+        },
+        status: PublicationStatus.READY,
+        errorMessage: null
+      },
+      {
+        raceId: race2.id,
+        target: "WordPress REST API",
+        mode: PublicationMode.AUTO_DRAFT,
+        payloadJson: {
+          title: "Pronostic R1C5 Auteuil",
+          excerpt: "Analyse encore a fiabiliser.",
+          body: "Le contenu est prepare mais la course n'est pas encore validee pour publication."
+        },
+        status: PublicationStatus.BLOCKED,
+        errorMessage: "La course n'est pas validee pour une publication. Le pronostic n'est pas approuve pour publication. Une ou plusieurs selections ciblent un non-partant ou un numero absent : 9, 11."
       },
       {
         raceId: race3.id,
         target: "Elite Turf CMS",
         mode: PublicationMode.MANUAL,
-        payloadJson: { title: "Resultat R2C1" },
+        payloadJson: {
+          title: "Pronostic valide R2C1",
+          excerpt: "Publication deja diffusee.",
+          body: "Nova de Feu tenait son rang. Le ticket validait la hierarchie attendue et a ete diffuse sur le site."
+        },
         status: PublicationStatus.PUBLISHED,
-        publishedAt: new Date("2026-04-10T15:35:00.000Z")
+        publishedAt: new Date("2026-04-10T15:35:00.000Z"),
+        errorMessage: null
       }
-    ],
-    skipDuplicates: false
-  });
-
-  await prisma.race.updateMany({
-    data: { runnersCount: 0 }
+    ]
   });
 
   for (const race of races) {
     const count = await prisma.runner.count({ where: { raceId: race.id } });
-    await prisma.race.update({
-      where: { id: race.id },
-      data: { runnersCount: count }
-    });
+    await prisma.race.update({ where: { id: race.id }, data: { runnersCount: count } });
   }
 
   await prisma.auditLog.createMany({
     data: [
-      {
-        actorId: admin.id,
-        actionType: AuditActionType.LOGIN,
-        entityType: AuditEntityType.AUTH_SESSION,
-        entityId: admin.id,
-        metadataJson: { seeded: true }
-      },
-      {
-        actorId: admin.id,
-        actionType: AuditActionType.CREATE,
-        entityType: AuditEntityType.RACE,
-        entityId: race1.id,
-        metadataJson: { source: "seed" }
-      },
-      {
-        actorId: editor.id,
-        actionType: AuditActionType.UPDATE,
-        entityType: AuditEntityType.PREDICTION,
-        entityId: race2.id,
-        metadataJson: { source: "seed", approvalStatus: ApprovalStatus.PENDING_REVIEW }
-      },
-      {
-        actorId: admin.id,
-        actionType: AuditActionType.PUBLISH,
-        entityType: AuditEntityType.PUBLICATION_JOB,
-        entityId: race3.id,
-        metadataJson: { status: PublicationStatus.PUBLISHED }
-      }
+      { actorId: admin.id, actionType: AuditActionType.LOGIN, entityType: AuditEntityType.AUTH_SESSION, entityId: admin.id, metadataJson: { seeded: true } },
+      { actorId: admin.id, actionType: AuditActionType.CREATE, entityType: AuditEntityType.RACE, entityId: race1.id, metadataJson: { source: "seed" } },
+      { actorId: editor.id, actionType: AuditActionType.UPDATE, entityType: AuditEntityType.PREDICTION, entityId: race2.id, metadataJson: { source: "seed", approvalStatus: ApprovalStatus.PENDING_REVIEW } },
+      { actorId: admin.id, actionType: AuditActionType.PUBLISH, entityType: AuditEntityType.PUBLICATION_JOB, entityId: race3.id, metadataJson: { status: PublicationStatus.PUBLISHED } }
     ]
   });
 }
@@ -390,4 +287,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-

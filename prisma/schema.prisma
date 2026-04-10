@@ -28,6 +28,7 @@ enum RaceStatus {
 enum PublicationStatus {
   DRAFT
   READY
+  BLOCKED
   PUBLISHED
   FAILED
 }
@@ -88,15 +89,15 @@ enum AuditEntityType {
 }
 
 model User {
-  id             String      @id @default(cuid())
-  name           String
-  email          String      @unique
-  passwordHash   String      @map("password_hash")
-  role           UserRole
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
+  id                  String       @id @default(cuid())
+  name                String
+  email               String       @unique
+  passwordHash        String       @map("password_hash")
+  role                UserRole
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
   approvedPredictions Prediction[] @relation("PredictionApprovedBy")
-  auditLogs      AuditLog[]
+  auditLogs           AuditLog[]
 
   @@map("users")
 }
@@ -128,19 +129,19 @@ model Race {
 }
 
 model Runner {
-  id            String       @id @default(cuid())
-  raceId        String       @map("race_id")
-  number        Int
-  horseName     String       @map("horse_name")
-  jockeyName    String?      @map("jockey_name")
-  trainerName   String?      @map("trainer_name")
-  odds          Decimal?     @db.Decimal(8, 2)
-  isNonRunner   Boolean      @default(false) @map("is_non_runner")
-  status        RunnerStatus @default(DECLARED)
-  rawDataJson   Json?        @map("raw_data_json")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  race          Race         @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  id          String       @id @default(cuid())
+  raceId      String       @map("race_id")
+  number      Int
+  horseName   String       @map("horse_name")
+  jockeyName  String?      @map("jockey_name")
+  trainerName String?      @map("trainer_name")
+  odds        Decimal?     @db.Decimal(8, 2)
+  isNonRunner Boolean      @default(false) @map("is_non_runner")
+  status      RunnerStatus @default(DECLARED)
+  rawDataJson Json?        @map("raw_data_json")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  race        Race         @relation(fields: [raceId], references: [id], onDelete: Cascade)
 
   @@unique([raceId, number])
   @@index([raceId, status])
@@ -148,36 +149,36 @@ model Runner {
 }
 
 model Prediction {
-  id               String          @id @default(cuid())
-  raceId           String          @unique @map("race_id")
-  mainPick         String          @map("main_pick")
-  basePick         String          @map("base_pick")
-  outsiderPick     String          @map("outsider_pick")
-  speculativePick  String          @map("speculative_pick")
-  confidenceLabel  ConfidenceLabel @map("confidence_label")
-  analysisText     String          @map("analysis_text")
-  cautionText      String          @map("caution_text")
-  approvalStatus   ApprovalStatus  @default(DRAFT) @map("approval_status")
-  generatedAt      DateTime        @default(now()) @map("generated_at")
-  approvedById     String?         @map("approved_by")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
-  race             Race            @relation(fields: [raceId], references: [id], onDelete: Cascade)
-  approvedBy       User?           @relation("PredictionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  id              String          @id @default(cuid())
+  raceId          String          @unique @map("race_id")
+  mainPick        String          @map("main_pick")
+  basePick        String          @map("base_pick")
+  outsiderPick    String          @map("outsider_pick")
+  speculativePick String          @map("speculative_pick")
+  confidenceLabel ConfidenceLabel @map("confidence_label")
+  analysisText    String          @map("analysis_text")
+  cautionText     String          @map("caution_text")
+  approvalStatus  ApprovalStatus  @default(DRAFT) @map("approval_status")
+  generatedAt     DateTime        @default(now()) @map("generated_at")
+  approvedById    String?         @map("approved_by")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  race            Race            @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  approvedBy      User?           @relation("PredictionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([approvalStatus])
   @@map("predictions")
 }
 
 model Result {
-  id             String               @id @default(cuid())
-  raceId         String               @unique @map("race_id")
-  officialArrival Json                @map("official_arrival")
-  officialStatus ResultOfficialStatus @default(PENDING) @map("official_status")
-  importedAt     DateTime?            @map("imported_at")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
-  race           Race                 @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  id              String               @id @default(cuid())
+  raceId          String               @unique @map("race_id")
+  officialArrival Json                 @map("official_arrival")
+  officialStatus  ResultOfficialStatus @default(PENDING) @map("official_status")
+  importedAt      DateTime?            @map("imported_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  race            Race                 @relation(fields: [raceId], references: [id], onDelete: Cascade)
 
   @@index([officialStatus])
   @@map("results")

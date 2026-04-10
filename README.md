@@ -63,8 +63,8 @@ npm run dev
 - `src/app` : routes App Router, login, pages admin et server actions
 - `src/components` : layout et composants UI reutilisables
 - `src/domain` : options et types metier alignes sur le cahier des charges
-- `src/services` : lecture metier cote serveur via Prisma
-- `src/lib` : auth, audit, validation, helpers et client Prisma
+- `src/services` : lecture metier cote serveur via Prisma, workflow de publication et adaptateurs mock
+- `src/lib` : auth, audit, validation, helpers, synchronisation des statuts et client Prisma
 - `prisma` : schema PostgreSQL, roles, seed et donnees de demonstration
 
 ## Fonctionnalites MVP presentes
@@ -76,11 +76,24 @@ npm run dev
 - CRUD Partants
 - CRUD Pronostics
 - CRUD Resultats
+- CRUD Publication Jobs
 - audit logs de base
-- workflow de publication prepare via `publication_jobs`
+- workflow de publication minimal avec statuts `DRAFT`, `READY`, `BLOCKED`, `PUBLISHED`, `FAILED`
+- controle metier bloquant avant publication
+- service de publication mock prepare pour WordPress REST API et API custom
+
+## Workflow de publication MVP
+
+- creation/modification d'un `publication_job` en brouillon
+- controle metier centralise pour verifier la course, le pronostic, le contenu editorial et les anomalies bloquantes
+- passage automatique en `READY` ou `BLOCKED`
+- tentative de publication mock via une couche de service decouplee
+- retour en `PUBLISHED` ou `FAILED`
 
 ## Evolutions prevues
 
 - branchement de vraies sources hippiques
 - moteur IA pour generation et scoring des pronostics
-- publication automatisee WordPress ou API custom
+- connecteur WordPress REST API reel
+- connecteur API custom reel
+- automatisation conditionnelle et scheduler

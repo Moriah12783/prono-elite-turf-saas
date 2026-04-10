@@ -1,4 +1,4 @@
-﻿import { ApprovalStatus, ConfidenceLabel, PublicationStatus, RaceStatus, ResultOfficialStatus, RunnerStatus } from "@prisma/client";
+﻿import { ApprovalStatus, ConfidenceLabel, PublicationMode, PublicationStatus, RaceStatus, ResultOfficialStatus, RunnerStatus } from "@prisma/client";
 
 export type AdminRaceRecord = {
   id: string;
@@ -21,6 +21,39 @@ export type AdminRaceRecord = {
     id: string;
     officialStatus: ResultOfficialStatus;
   } | null;
+};
+
+export type PublicationPayloadDraft = {
+  title: string;
+  body: string;
+  excerpt?: string;
+};
+
+export type PublicationPreflightResult = {
+  isPublishable: boolean;
+  status: PublicationStatus;
+  reasons: string[];
+};
+
+export type PublicationExecutionResult = {
+  success: boolean;
+  status: PublicationStatus;
+  publishedAt?: Date;
+  errorMessage?: string;
+  externalReference?: string;
+};
+
+export type PublicationProviderInput = {
+  publicationJobId: string;
+  target: string;
+  mode: PublicationMode;
+  payload: PublicationPayloadDraft;
+  race: {
+    id: string;
+    raceName: string;
+    venue: string;
+    raceTime: string;
+  };
 };
 
 export type AdminRunnerRecord = {

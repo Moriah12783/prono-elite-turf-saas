@@ -23,7 +23,7 @@ export async function createUserSession(payload: Omit<SessionPayload, "exp">) {
 
 export async function clearUserSession() {
   const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE_NAME);
+  cookieStore.delete({ name: SESSION_COOKIE_NAME, path: "/" });
 }
 
 export async function getCurrentSession() {
@@ -71,3 +71,4 @@ export async function requireAdmin() {
 
   return user;
 }
+

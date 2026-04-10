@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
-import { formatDate, formatStatusLabel } from "@/lib/format";
+import { formatDate, formatDateTime, formatStatusLabel } from "@/lib/format";
 import { getAuditLogs, getDashboardMetrics, getRaces } from "@/services/backoffice-service";
 
 export default async function DashboardPage() {
@@ -66,7 +66,7 @@ export default async function DashboardPage() {
                   <StatusBadge status={log.entityType} />
                 </div>
                 <p className="mt-2 text-sm text-slate-600">
-                  {log.actor?.name ?? "Systeme"} • {formatStatusLabel(log.entityType)} • {formatDate(log.createdAt)}
+                  {log.actor?.name ?? "Systeme"} • {formatStatusLabel(log.entityType)} • {formatDateTime(log.createdAt)}
                 </p>
               </div>
             ))}
@@ -76,3 +76,4 @@ export default async function DashboardPage() {
     </div>
   );
 }
+

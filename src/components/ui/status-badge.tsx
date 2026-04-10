@@ -9,6 +9,7 @@ const toneMap: Record<string, string> = {
   DRAFT_READY: "bg-violet-100 text-violet-800",
   READY: "bg-emerald-100 text-emerald-800",
   DRAFT: "bg-slate-200 text-slate-700",
+  BLOCKED: "bg-rose-100 text-rose-800",
   APPROVED: "bg-emerald-100 text-emerald-800",
   PUBLISHED: "bg-brand-100 text-brand-900",
   ARCHIVED: "bg-slate-300 text-slate-800",
