@@ -1,0 +1,216 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  SUPER_ADMIN
+}
+
+enum RaceStatus {
+  COLLECTED
+  PENDING_VALIDATION
+  VALIDATED
+  PREDICTION_GENERATED
+  DRAFT_READY
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+  RESULT_INTEGRATED
+}
+
+enum PublicationStatus {
+  DRAFT
+  READY
+  PUBLISHED
+  FAILED
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+enum ConfidenceLabel {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum RunnerStatus {
+  DECLARED
+  NON_RUNNER
+  CONFIRMED
+}
+
+enum ResultOfficialStatus {
+  PENDING
+  PARTIAL
+  OFFICIAL
+}
+
+enum PublicationMode {
+  MANUAL
+  AUTO_DRAFT
+  VALIDATED
+  CONDITIONAL_AUTOMATIC
+}
+
+enum AuditActionType {
+  CREATE
+  UPDATE
+  DELETE
+  VALIDATE
+  APPROVE
+  PUBLISH
+  LOGIN
+  LOGOUT
+}
+
+enum AuditEntityType {
+  USER
+  RACE
+  RUNNER
+  PREDICTION
+  RESULT
+  PUBLICATION_JOB
+  AUTH_SESSION
+}
+
+model User {
+  id             String      @id @default(cuid())
+  name           String
+  email          String      @unique
+  passwordHash   String      @map("password_hash")
+  role           UserRole
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  approvedPredictions Prediction[] @relation("PredictionApprovedBy")
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+model Race {
+  id                String            @id @default(cuid())
+  externalSourceId  String?           @unique @map("external_source_id")
+  raceName          String            @map("race_name")
+  venue             String
+  raceDate          DateTime          @map("race_date") @db.Date
+  raceTime          String            @map("race_time")
+  raceDateTime      DateTime          @map("race_datetime")
+  discipline        String
+  distance          Int
+  runnersCount      Int               @default(0) @map("runners_count")
+  status            RaceStatus
+  qualityScore      Int?              @map("quality_score")
+  publicationStatus PublicationStatus @default(DRAFT) @map("publication_status")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  runners           Runner[]
+  prediction        Prediction?
+  result            Result?
+  publicationJobs   PublicationJob[]
+
+  @@index([raceDate, status])
+  @@index([publicationStatus])
+  @@map("races")
+}
+
+model Runner {
+  id            String       @id @default(cuid())
+  raceId        String       @map("race_id")
+  number        Int
+  horseName     String       @map("horse_name")
+  jockeyName    String?      @map("jockey_name")
+  trainerName   String?      @map("trainer_name")
+  odds          Decimal?     @db.Decimal(8, 2)
+  isNonRunner   Boolean      @default(false) @map("is_non_runner")
+  status        RunnerStatus @default(DECLARED)
+  rawDataJson   Json?        @map("raw_data_json")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  race          Race         @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@unique([raceId, number])
+  @@index([raceId, status])
+  @@map("runners")
+}
+
+model Prediction {
+  id               String          @id @default(cuid())
+  raceId           String          @unique @map("race_id")
+  mainPick         String          @map("main_pick")
+  basePick         String          @map("base_pick")
+  outsiderPick     String          @map("outsider_pick")
+  speculativePick  String          @map("speculative_pick")
+  confidenceLabel  ConfidenceLabel @map("confidence_label")
+  analysisText     String          @map("analysis_text")
+  cautionText      String          @map("caution_text")
+  approvalStatus   ApprovalStatus  @default(DRAFT) @map("approval_status")
+  generatedAt      DateTime        @default(now()) @map("generated_at")
+  approvedById     String?         @map("approved_by")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  race             Race            @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  approvedBy       User?           @relation("PredictionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([approvalStatus])
+  @@map("predictions")
+}
+
+model Result {
+  id             String               @id @default(cuid())
+  raceId         String               @unique @map("race_id")
+  officialArrival Json                @map("official_arrival")
+  officialStatus ResultOfficialStatus @default(PENDING) @map("official_status")
+  importedAt     DateTime?            @map("imported_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  race           Race                 @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@index([officialStatus])
+  @@map("results")
+}
+
+model PublicationJob {
+  id           String            @id @default(cuid())
+  raceId       String            @map("race_id")
+  target       String
+  mode         PublicationMode
+  payloadJson  Json?             @map("payload_json")
+  status       PublicationStatus @default(DRAFT)
+  publishedAt  DateTime?         @map("published_at")
+  errorMessage String?           @map("error_message")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  race         Race              @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@index([raceId, status])
+  @@map("publication_jobs")
+}
+
+model AuditLog {
+  id           String          @id @default(cuid())
+  actorId      String?         @map("actor_id")
+  actionType   AuditActionType @map("action_type")
+  entityType   AuditEntityType @map("entity_type")
+  entityId     String          @map("entity_id")
+  metadataJson Json?           @map("metadata_json")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  actor        User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
