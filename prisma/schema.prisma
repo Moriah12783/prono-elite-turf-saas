@@ -85,7 +85,28 @@ enum AuditEntityType {
   PREDICTION
   RESULT
   PUBLICATION_JOB
+  SCHEDULED_JOB_RUN
   AUTH_SESSION
+}
+
+enum ScheduledJobKey {
+  PREPARE_DAILY_PUBLICATIONS
+  VALIDATE_READY_PUBLICATIONS
+  ATTEMPT_AUTOMATIC_PUBLICATIONS
+}
+
+enum ScheduledJobRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum ScheduledJobTrigger {
+  MANUAL
+  API
+  CRON
 }
 
 model User {
@@ -101,6 +122,7 @@ model User {
   archivedPredictions Prediction[] @relation("PredictionArchivedBy")
   archivedResults     Result[]     @relation("ResultArchivedBy")
   archivedPublications PublicationJob[] @relation("PublicationArchivedBy")
+  scheduledJobRuns    ScheduledJobRun[]
   auditLogs           AuditLog[]
 
   @@map("users")
@@ -230,4 +252,25 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model ScheduledJobRun {
+  id            String               @id @default(cuid())
+  jobKey        ScheduledJobKey      @map("job_key")
+  trigger       ScheduledJobTrigger
+  runDate       DateTime             @map("run_date") @db.Date
+  status        ScheduledJobRunStatus @default(PENDING)
+  dryRun        Boolean              @default(true) @map("dry_run")
+  startedAt     DateTime?            @map("started_at")
+  finishedAt    DateTime?            @map("finished_at")
+  requestedById String?              @map("requested_by")
+  summaryJson   Json?                @map("summary_json")
+  errorMessage  String?              @map("error_message")
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  requestedBy   User?                @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([jobKey, runDate])
+  @@index([status, createdAt])
+  @@map("scheduled_job_runs")
 }

@@ -1,4 +1,4 @@
-﻿# PRONO ELITE TURF
+# PRONO ELITE TURF
 
 MVP d'un back-office SaaS pour piloter la production quotidienne de pronostics hippiques.
 
@@ -40,6 +40,7 @@ Variables principales :
 - `API_CUSTOM_TOKEN` : token Bearer de l'API custom
 - `API_CUSTOM_ENDPOINT` : endpoint de publication custom, par defaut `/publications`
 - `API_CUSTOM_DEFAULT_STATUS` : statut transmis au payload custom (`draft`, `publish`, `pending`, `private`)
+- `SCHEDULER_API_TOKEN` : token Bearer utilise par l'endpoint local des jobs planifies
 
 3. Generer Prisma puis executer la migration :
 
@@ -72,7 +73,7 @@ npm run dev
 - `src/app` : routes App Router, login, pages admin et server actions
 - `src/components` : layout et composants UI reutilisables
 - `src/domain` : options et types metier alignes sur le cahier des charges
-- `src/services` : lecture metier cote serveur via Prisma, workflow de publication et adaptateurs mock
+- `src/services` : lecture metier cote serveur via Prisma, workflow de publication, planification et adaptateurs
 - `src/lib` : auth, audit, validation, helpers, synchronisation des statuts et client Prisma
 - `prisma` : schema PostgreSQL, roles, seed et donnees de demonstration
 
@@ -90,6 +91,8 @@ npm run dev
 - workflow de publication minimal avec statuts `DRAFT`, `READY`, `BLOCKED`, `PUBLISHED`, `FAILED`
 - controle metier bloquant avant publication
 - service de publication mock prepare pour WordPress REST API et API custom
+- vue debug publication avec historique des tentatives
+- socle de jobs planifies quotidiens avec execution manuelle et endpoint API securise
 
 ## Workflow de publication MVP
 
@@ -157,27 +160,7 @@ npm run dev
 - `api-custom` est maintenant un vrai provider stub structure au meme niveau architectural que `wordpress-rest`
 - si `API_CUSTOM_BASE_URL` et `API_CUSTOM_TOKEN` sont renseignes, le provider peut envoyer une requete POST reelle vers l'endpoint custom configure
 - si la configuration est absente ou incomplete, le systeme conserve un comportement sur et repasse en mode mock
-- le payload envoye est structure pour preparer une future API Elite Turf :
-  - `publicationJobId`
-  - `provider`
-  - `target`
-  - `mode`
-  - `publicationStatus`
-  - `article` avec `title`, `body`, `excerpt`
-  - `race` avec `id`, `raceName`, `venue`, `raceTime`
-
-### Comportement du stub `api-custom`
-
-- en mode non configure :
-  - l'UI affiche `Mode prepare`
-  - la publication repasse sur le fallback mock pour ne rien casser localement
-- en mode configure :
-  - le provider tente un POST HTTP avec `Authorization: Bearer <token>`
-  - la reponse attend au minimum une reference de publication :
-    - `url`
-    - ou `reference`
-    - ou `id`
-  - si aucune reference n'est retournee, le job passe en `FAILED`
+- le payload envoye est structure pour preparer une future API Elite Turf
 
 ### Brancher plus tard une vraie API Elite Turf
 
@@ -245,22 +228,63 @@ API_CUSTOM_DEFAULT_STATUS="draft"
   - le message d'erreur
   - les horodatages utiles
 - cette vue fonctionne pour `mock`, `wordpress-rest` et `api-custom`
-- aucun secret de configuration n'y est affiche :
-  - pas de token Bearer
-  - pas de mot de passe applicatif WordPress
-  - pas d'en-tetes d'authentification
+- aucun secret de configuration n'y est affiche
+- chaque relance de publication ajoute maintenant une entree dans l'historique des tentatives
 
-### Tester le debug localement
+## Jobs planifies quotidiens
 
-1. creer ou editer un `publication_job`
-2. lancer `Controler`
-3. lancer `Publier`
-4. cliquer sur `Debug`
-5. verifier dans la fiche :
-   - le payload envoye au provider
-   - la reponse retournee par le provider
-   - le mode effectif `mock`, `real` ou `prepared`
-   - l'eventuelle erreur de publication
+Une premiere couche de planification est disponible pour preparer l'automatisation quotidienne sans automatiser tout le metier d'un coup.
+
+### Jobs disponibles
+
+- `PREPARE_DAILY_PUBLICATIONS`
+  - repere les courses du jour eligibles
+  - peut creer les brouillons de publication manquants en `AUTO_DRAFT`
+- `VALIDATE_READY_PUBLICATIONS`
+  - rejoue le controle metier sur les publications du jour
+  - met a jour `READY` ou `BLOCKED`
+- `ATTEMPT_AUTOMATIC_PUBLICATIONS`
+  - tente uniquement les publications `READY`
+  - ignore les jobs `MANUAL`
+  - respecte les garde-fous des providers
+
+### Garde-fous
+
+- verrou anti-concurrence : un job deja `RUNNING` bloque un nouveau run du meme type pendant une fenetre de securite
+- garde-fou quotidien : un run reel deja `SUCCEEDED` le meme jour bloque une nouvelle execution non forcee
+- `dryRun` disponible pour tout job afin de tester sans effet de bord
+- les runs sont historises en base dans `scheduled_job_runs`
+
+### Tester depuis l'admin
+
+1. ouvrir `/scheduler`
+2. lancer un job en `Simulation`
+3. verifier le resume dans `Derniers runs`
+4. lancer ensuite `Executer` pour les jobs sans risque souhaites
+
+### Tester via l'endpoint API local
+
+Endpoint :
+
+- `POST /api/jobs/scheduled`
+
+Headers :
+
+- `Authorization: Bearer <SCHEDULER_API_TOKEN>`
+- `Content-Type: application/json`
+
+Exemple :
+
+```bash
+curl -X POST http://localhost:3000/api/jobs/scheduled \
+  -H "Authorization: Bearer local-scheduler-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobKey": "VALIDATE_READY_PUBLICATIONS",
+    "dryRun": true,
+    "force": false
+  }'
+```
 
 ## Strategie de relations et suppressions
 
@@ -279,19 +303,17 @@ API_CUSTOM_DEFAULT_STATUS="draft"
 
 ## Migration Prisma supplementaire
 
-Si ta base locale a deja ete creee avec les anciennes relations en cascade, applique la migration suivante :
+Si ta base locale a deja ete creee avec les anciennes relations en cascade, applique les migrations disponibles :
 
 ```bash
 npm run db:migrate
 ```
 
-Cette migration remplace les `ON DELETE CASCADE` critiques par `ON DELETE RESTRICT` sans changer le modele fonctionnel du MVP.
+Les migrations actuelles couvrent notamment :
 
-Une migration supplementaire ajoute aussi les champs d'archivage sur les entites sensibles :
-
-```bash
-npm run db:migrate
-```
+- le durcissement des relations critiques en `RESTRICT`
+- l'ajout des champs d'archivage sur les entites sensibles
+- la creation de `scheduled_job_runs` pour la planification quotidienne
 
 ## Evolutions prevues
 
@@ -299,4 +321,4 @@ npm run db:migrate
 - moteur IA pour generation et scoring des pronostics
 - connecteur WordPress REST API reel
 - connecteur API custom reel
-- automatisation conditionnelle et scheduler
+- automatisation conditionnelle et scheduler complet

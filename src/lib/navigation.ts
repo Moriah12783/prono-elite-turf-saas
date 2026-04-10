@@ -1,4 +1,5 @@
-﻿import {
+import {
+  AlarmClock,
   BarChart3,
   BookOpen,
   ClipboardList,
@@ -13,8 +14,8 @@ export const navigationItems = [
   { href: "/courses", label: "Courses", icon: Flag },
   { href: "/runners", label: "Partants", icon: ListChecks },
   { href: "/predictions", label: "Pronostics", icon: BarChart3 },
-  { href: "/results", label: "Résultats", icon: ClipboardList },
+  { href: "/results", label: "R�sultats", icon: ClipboardList },
   { href: "/publications", label: "Publications", icon: Megaphone },
+  { href: "/scheduler", label: "Jobs", icon: AlarmClock },
   { href: "/logs", label: "Logs", icon: BookOpen }
 ];
-

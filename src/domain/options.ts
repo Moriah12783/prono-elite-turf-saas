@@ -8,6 +8,9 @@ import {
   RaceStatus,
   ResultOfficialStatus,
   RunnerStatus,
+  ScheduledJobKey,
+  ScheduledJobRunStatus,
+  ScheduledJobTrigger,
   UserRole
 } from "@prisma/client";
 
@@ -54,6 +57,23 @@ export const PUBLICATION_MODE_OPTIONS = [
   PublicationMode.CONDITIONAL_AUTOMATIC
 ] as const;
 export const PUBLICATION_TARGET_OPTIONS = PUBLICATION_TARGET_KEYS;
+export const SCHEDULED_JOB_KEY_OPTIONS = [
+  ScheduledJobKey.PREPARE_DAILY_PUBLICATIONS,
+  ScheduledJobKey.VALIDATE_READY_PUBLICATIONS,
+  ScheduledJobKey.ATTEMPT_AUTOMATIC_PUBLICATIONS
+] as const;
+export const SCHEDULED_JOB_RUN_STATUS_OPTIONS = [
+  ScheduledJobRunStatus.PENDING,
+  ScheduledJobRunStatus.RUNNING,
+  ScheduledJobRunStatus.SUCCEEDED,
+  ScheduledJobRunStatus.FAILED,
+  ScheduledJobRunStatus.SKIPPED
+] as const;
+export const SCHEDULED_JOB_TRIGGER_OPTIONS = [
+  ScheduledJobTrigger.MANUAL,
+  ScheduledJobTrigger.API,
+  ScheduledJobTrigger.CRON
+] as const;
 export const AUDIT_ACTION_OPTIONS = [
   AuditActionType.CREATE,
   AuditActionType.UPDATE,
@@ -71,5 +91,6 @@ export const AUDIT_ENTITY_OPTIONS = [
   AuditEntityType.PREDICTION,
   AuditEntityType.RESULT,
   AuditEntityType.PUBLICATION_JOB,
+  AuditEntityType.SCHEDULED_JOB_RUN,
   AuditEntityType.AUTH_SESSION
 ] as const;

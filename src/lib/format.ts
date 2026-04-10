@@ -1,4 +1,4 @@
-﻿const labels: Record<string, string> = {
+const labels: Record<string, string> = {
   ADMIN: "Admin",
   EDITOR: "Editeur",
   SUPER_ADMIN: "Super admin",
@@ -49,7 +49,16 @@
   PREDICTION: "Pronostic",
   RESULT: "Resultat",
   PUBLICATION_JOB: "Publication",
-  AUTH_SESSION: "Session"
+  SCHEDULED_JOB_RUN: "Run planifie",
+  AUTH_SESSION: "Session",
+  PREPARE_DAILY_PUBLICATIONS: "Preparation quotidienne",
+  VALIDATE_READY_PUBLICATIONS: "Controle quotidien",
+  ATTEMPT_AUTOMATIC_PUBLICATIONS: "Tentative automatique",
+  RUNNING: "En cours",
+  SUCCEEDED: "Reussi",
+  SKIPPED: "Ignore",
+  API: "API",
+  CRON: "Cron"
 };
 
 export function formatStatusLabel(value: string) {
