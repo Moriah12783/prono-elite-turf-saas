@@ -191,6 +191,10 @@ npm run dev
 4. redemarrer `npm run dev`
 5. tester une publication avec la cible `API custom`
 
+Le contrat cible propose pour Elite Turf est documente ici :
+
+- [docs/contrat-api-publication-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\contrat-api-publication-elite-turf.md)
+
 ## Strategie de relations et suppressions
 
 - les relations critiques vers `races` sont protegees en base par `ON DELETE RESTRICT`

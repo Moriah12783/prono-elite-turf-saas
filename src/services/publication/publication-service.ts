@@ -111,7 +111,8 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
       id: fullJob.race.id,
       raceName: fullJob.race.raceName,
       venue: fullJob.race.venue,
-      raceTime: fullJob.race.raceTime
+      raceTime: fullJob.race.raceTime,
+      raceDateTime: fullJob.race.raceDateTime
     }
   });
 

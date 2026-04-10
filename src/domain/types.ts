@@ -57,13 +57,51 @@ export type PublicationProviderInput = {
   publicationJobId: string;
   target: string;
   mode: PublicationMode;
+  publicationStatus?: PublicationStatus;
   payload: PublicationPayloadDraft;
   race: {
     id: string;
     raceName: string;
     venue: string;
     raceTime: string;
+    raceDateTime?: Date;
   };
+};
+
+export type EliteTurfApiPublicationPayload = {
+  requestId: string;
+  provider: "api-custom";
+  target: "elite-turf";
+  mode: PublicationMode;
+  publicationStatus: string;
+  scheduledFor?: string;
+  course: {
+    id: string;
+    externalSourceId?: string;
+    raceName: string;
+    venue: string;
+    raceDateTime?: string;
+  };
+  article: {
+    title: string;
+    excerpt?: string;
+    content: string;
+    contentFormat: "html";
+  };
+  metadata: {
+    sourceSystem: "prono-elite-turf-saas";
+    publicationJobId: string;
+    generatedAt: string;
+  };
+};
+
+export type EliteTurfApiPublicationResponse = {
+  success: boolean;
+  publicationId?: string;
+  externalReference?: string;
+  status: "accepted" | "draft" | "published" | "failed";
+  message?: string;
+  receivedAt?: string;
 };
 
 export type AdminRunnerRecord = {

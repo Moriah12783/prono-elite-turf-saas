@@ -1,45 +1,77 @@
 import { PublicationStatus } from "@prisma/client";
 
-import { PublicationExecutionResult, PublicationProviderInput } from "@/domain/types";
+import {
+  EliteTurfApiPublicationPayload,
+  EliteTurfApiPublicationResponse,
+  PublicationExecutionResult,
+  PublicationProviderInput
+} from "@/domain/types";
 
 import { getApiCustomConfig } from "./api-custom-config";
 
-type ApiCustomResponse = {
-  id?: string | number;
-  reference?: string;
-  url?: string;
-  status?: string;
-  message?: string;
-  code?: string;
-};
+function toIsoString(value?: Date): string | undefined {
+  return value instanceof Date ? value.toISOString() : undefined;
+}
 
-function createApiCustomRequestBody(input: PublicationProviderInput, defaultStatus: string) {
+export function createEliteTurfApiPayload(
+  input: PublicationProviderInput,
+  defaultStatus: string
+): EliteTurfApiPublicationPayload {
   return {
-    publicationJobId: input.publicationJobId,
+    requestId: input.publicationJobId,
     provider: "api-custom",
-    target: input.target,
+    target: "elite-turf",
     mode: input.mode,
     publicationStatus: defaultStatus,
-    article: {
-      title: input.payload.title,
-      body: input.payload.body,
-      excerpt: input.payload.excerpt ?? ""
-    },
-    race: {
+    course: {
       id: input.race.id,
       raceName: input.race.raceName,
       venue: input.race.venue,
-      raceTime: input.race.raceTime
+      raceDateTime: toIsoString(input.race.raceDateTime)
+    },
+    article: {
+      title: input.payload.title,
+      excerpt: input.payload.excerpt,
+      content: input.payload.body,
+      contentFormat: "html"
+    },
+    metadata: {
+      sourceSystem: "prono-elite-turf-saas",
+      publicationJobId: input.publicationJobId,
+      generatedAt: new Date().toISOString()
     }
   };
 }
 
-function getApiCustomErrorMessage(responseBody: ApiCustomResponse | null, status: number): string {
-  if (responseBody?.message) {
-    return `API custom a refuse la publication (${status}) : ${responseBody.message}`;
+function normalizeEliteTurfApiResponse(value: unknown): EliteTurfApiPublicationResponse | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
   }
 
-  return `API custom a retourne une reponse invalide (${status}).`;
+  const candidate = value as Record<string, unknown>;
+  const success = typeof candidate.success === "boolean" ? candidate.success : null;
+  const status = typeof candidate.status === "string" ? candidate.status : null;
+
+  if (success === null || status === null) {
+    return null;
+  }
+
+  return {
+    success,
+    status: ["accepted", "draft", "published", "failed"].includes(status) ? (status as EliteTurfApiPublicationResponse["status"]) : "failed",
+    publicationId: typeof candidate.publicationId === "string" ? candidate.publicationId : undefined,
+    externalReference: typeof candidate.externalReference === "string" ? candidate.externalReference : undefined,
+    message: typeof candidate.message === "string" ? candidate.message : undefined,
+    receivedAt: typeof candidate.receivedAt === "string" ? candidate.receivedAt : undefined
+  };
+}
+
+function getApiCustomErrorMessage(responseBody: EliteTurfApiPublicationResponse | null, status: number): string {
+  if (responseBody?.message) {
+    return `API Elite Turf a refuse la publication (${status}) : ${responseBody.message}`;
+  }
+
+  return `API Elite Turf a retourne une reponse invalide (${status}).`;
 }
 
 export class ApiCustomPublicationProvider {
@@ -57,7 +89,7 @@ export class ApiCustomPublicationProvider {
     }
 
     const endpoint = new URL(config.endpoint, config.baseUrl).toString();
-    const requestBody = createApiCustomRequestBody(input, config.defaultStatus);
+    const requestBody = createEliteTurfApiPayload(input, config.defaultStatus);
 
     try {
       const response = await fetch(endpoint, {
@@ -71,10 +103,10 @@ export class ApiCustomPublicationProvider {
         cache: "no-store"
       });
 
-      let responseBody: ApiCustomResponse | null = null;
+      let responseBody: EliteTurfApiPublicationResponse | null = null;
 
       try {
-        responseBody = (await response.json()) as ApiCustomResponse;
+        responseBody = normalizeEliteTurfApiResponse(await response.json());
       } catch {
         responseBody = null;
       }
@@ -90,22 +122,22 @@ export class ApiCustomPublicationProvider {
       }
 
       const externalReference =
-        responseBody?.url ??
-        responseBody?.reference ??
-        (responseBody?.id ? `api-custom:${responseBody.id}` : null);
+        responseBody?.externalReference ??
+        responseBody?.publicationId ??
+        null;
 
       if (!externalReference) {
         return {
           success: false,
           status: PublicationStatus.FAILED,
-          errorMessage: "API custom n'a pas retourne de reference de publication.",
+          errorMessage: "API Elite Turf n'a pas retourne de reference de publication.",
           providerKey: "api-custom",
           deliveryMode: "real"
         };
       }
 
       return {
-        success: true,
+        success: responseBody?.success ?? true,
         status: PublicationStatus.PUBLISHED,
         publishedAt: new Date(),
         externalReference,
