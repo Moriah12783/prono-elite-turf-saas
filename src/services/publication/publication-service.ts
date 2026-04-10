@@ -53,7 +53,10 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
     return {
       success: false,
       status: PublicationStatus.BLOCKED,
-      errorMessage: validation.evaluation.reasons.join(" ")
+      errorMessage: validation.evaluation.reasons.join(" "),
+      publishedAt: null,
+      providerKey: null,
+      deliveryMode: null
     };
   }
 
@@ -68,7 +71,10 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
     return {
       success: false,
       status: PublicationStatus.FAILED,
-      errorMessage: "Publication introuvable."
+      errorMessage: "Publication introuvable.",
+      publishedAt: null,
+      providerKey: null,
+      deliveryMode: null
     };
   }
 
@@ -88,7 +94,10 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
     return {
       success: false,
       status: PublicationStatus.BLOCKED,
-      errorMessage: "Payload editorial introuvable ou invalide."
+      errorMessage: "Payload editorial introuvable ou invalide.",
+      publishedAt: null,
+      providerKey: null,
+      deliveryMode: null
     };
   }
 
@@ -143,6 +152,8 @@ export async function publishPublicationJob(publicationJobId: string, actorId?: 
     success: result.success,
     status: updatedJob.status,
     errorMessage: updatedJob.errorMessage,
-    publishedAt: updatedJob.publishedAt
+    publishedAt: updatedJob.publishedAt,
+    providerKey: result.providerKey ?? null,
+    deliveryMode: result.deliveryMode ?? null
   };
 }

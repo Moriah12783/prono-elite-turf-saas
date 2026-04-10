@@ -1,4 +1,4 @@
-﻿import {
+import {
   ApprovalStatus,
   AuditActionType,
   AuditEntityType,
@@ -10,6 +10,8 @@
   RunnerStatus,
   UserRole
 } from "@prisma/client";
+
+import { PUBLICATION_TARGET_OPTIONS as PUBLICATION_TARGET_KEYS } from "@/services/publication/publication-targets";
 
 export const USER_ROLE_OPTIONS = [UserRole.ADMIN, UserRole.EDITOR, UserRole.SUPER_ADMIN] as const;
 export const RACE_STATUS_OPTIONS = [
@@ -51,6 +53,7 @@ export const PUBLICATION_MODE_OPTIONS = [
   PublicationMode.VALIDATED,
   PublicationMode.CONDITIONAL_AUTOMATIC
 ] as const;
+export const PUBLICATION_TARGET_OPTIONS = PUBLICATION_TARGET_KEYS;
 export const AUDIT_ACTION_OPTIONS = [
   AuditActionType.CREATE,
   AuditActionType.UPDATE,

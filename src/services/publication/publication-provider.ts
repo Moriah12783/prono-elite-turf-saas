@@ -3,7 +3,8 @@ import { PublicationStatus } from "@prisma/client";
 import { PublicationExecutionResult, PublicationProviderInput } from "@/domain/types";
 
 import { WordPressPublicationProvider } from "./wordpress-provider";
-import { getWordPressConfig, isWordPressTarget } from "./wordpress-config";
+import { getWordPressConfig } from "./wordpress-config";
+import { normalizePublicationTarget } from "./publication-targets";
 
 export interface PublicationProvider {
   publish(input: PublicationProviderInput): Promise<PublicationExecutionResult>;
@@ -11,13 +12,15 @@ export interface PublicationProvider {
 
 class MockPublicationProvider implements PublicationProvider {
   async publish(input: PublicationProviderInput): Promise<PublicationExecutionResult> {
-    const normalizedTarget = input.target.toLowerCase();
+    const normalizedTarget = normalizePublicationTarget(input.target);
 
-    if (!normalizedTarget.includes("wordpress") && !normalizedTarget.includes("api") && !normalizedTarget.includes("cms")) {
+    if (!normalizedTarget || normalizedTarget === "api-custom") {
       return {
         success: false,
         status: PublicationStatus.FAILED,
-        errorMessage: "Aucun adaptateur mock n'est disponible pour cette cible.",
+        errorMessage: normalizedTarget === "api-custom"
+          ? "Le provider api-custom est prepare mais pas encore branche."
+          : "Aucun adaptateur mock n'est disponible pour cette cible.",
         externalReference: undefined,
         providerKey: "mock",
         deliveryMode: "mock"
@@ -36,12 +39,10 @@ class MockPublicationProvider implements PublicationProvider {
 }
 
 export function resolvePublicationProvider(target: string): PublicationProvider {
-  if (isWordPressTarget(target)) {
-    const config = getWordPressConfig();
+  const normalizedTarget = normalizePublicationTarget(target);
 
-    if (config.enabled) {
-      return new WordPressPublicationProvider();
-    }
+  if (normalizedTarget === "wordpress-rest" && getWordPressConfig().enabled) {
+    return new WordPressPublicationProvider();
   }
 
   return new MockPublicationProvider();

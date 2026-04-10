@@ -11,11 +11,13 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
 import { Textarea } from "@/components/ui/textarea";
 import { getPublicationActionPolicy } from "@/domain/entity-action-policy";
-import { PUBLICATION_MODE_OPTIONS } from "@/domain/options";
+import { PUBLICATION_MODE_OPTIONS, PUBLICATION_TARGET_OPTIONS } from "@/domain/options";
 import { formatDateTime, formatStatusLabel } from "@/lib/format";
-import { parsePublicationPayload } from "@/lib/publication-payload";
+import { parsePublicationDeliveryMeta, parsePublicationPayload } from "@/lib/publication-payload";
 import { asStringValue } from "@/lib/validation";
 import { getPublicationById, getPublicationRows, getRacesForSelect } from "@/services/backoffice-service";
+import { getPublicationTargetRuntimeMode } from "@/services/publication/wordpress-config";
+import { normalizePublicationTarget } from "@/services/publication/publication-targets";
 
 import {
   archivePublicationJobAction,
@@ -44,13 +46,15 @@ export default async function PublicationsPage({
   ]);
 
   const editingPayload = parsePublicationPayload(editingPublication?.payloadJson);
+  const editingTarget = normalizePublicationTarget(editingPublication?.target ?? "") ?? "mock";
+  const editingRuntimeMode = getPublicationTargetRuntimeMode(editingTarget);
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Diffusion"
         title="Gestion des publication jobs"
-        description="CRUD admin, controles bloquants et publication mock decouplee pour preparer les futures integrations externes."
+        description="CRUD admin, controles bloquants et publication par provider structure pour preparer les integrations externes."
       />
 
       <div className="flex justify-end">
@@ -83,8 +87,12 @@ export default async function PublicationsPage({
                   ))}
                 </Select>
               </Field>
-              <Field label="Cible">
-                <Input name="target" defaultValue={editingPublication?.target ?? "WordPress REST API"} required />
+              <Field label="Provider de publication" hint="Le provider determine le connecteur reel ou le fallback mock.">
+                <Select name="target" defaultValue={editingTarget}>
+                  {PUBLICATION_TARGET_OPTIONS.map((target) => (
+                    <option key={target} value={target}>{formatStatusLabel(target)}</option>
+                  ))}
+                </Select>
               </Field>
               <Field label="Mode de publication">
                 <Select name="mode" defaultValue={editingPublication?.mode ?? PUBLICATION_MODE_OPTIONS[0]}>
@@ -92,6 +100,12 @@ export default async function PublicationsPage({
                     <option key={mode} value={mode}>{formatStatusLabel(mode)}</option>
                   ))}
                 </Select>
+              </Field>
+              <Field label="Execution effective">
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <ActionPolicyBadge label={formatStatusLabel(editingTarget)} tone="info" />
+                  <ActionPolicyBadge label={formatStatusLabel(editingRuntimeMode)} tone={editingRuntimeMode === "real" ? "allowed" : "blocked"} />
+                </div>
               </Field>
               <Field label="Statut actuel">
                 <div className="pt-3">
@@ -123,7 +137,7 @@ export default async function PublicationsPage({
 
         <Panel
           title={showArchived ? "Publications archivees" : "Suivi des publications"}
-          description={showArchived ? "Historique archive des jobs de publication." : "Controle metier, statut workflow, erreurs de publication et payload editorial."}
+          description={showArchived ? "Historique archive des jobs de publication." : "Provider, mode effectif, erreurs de publication et payload editorial."}
         >
           <SimpleTable
             rows={rows}
@@ -140,23 +154,37 @@ export default async function PublicationsPage({
               },
               {
                 key: "target",
-                header: "Target / Mode",
-                render: (row) => (
-                  <div>
-                    <p>{row.target}</p>
-                    <p className="text-slate-500">{formatStatusLabel(row.mode)}</p>
-                  </div>
-                )
+                header: "Provider / Mode",
+                render: (row) => {
+                  const normalizedTarget = normalizePublicationTarget(row.target) ?? "mock";
+                  const deliveryMeta = parsePublicationDeliveryMeta(row.payloadJson);
+                  const effectiveMode = deliveryMeta?.deliveryMode ?? getPublicationTargetRuntimeMode(normalizedTarget);
+
+                  return (
+                    <div className="space-y-2">
+                      <p>{formatStatusLabel(normalizedTarget)}</p>
+                      <p className="text-slate-500">{formatStatusLabel(row.mode)}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <ActionPolicyBadge label={formatStatusLabel(effectiveMode)} tone={effectiveMode === "real" ? "allowed" : effectiveMode === "prepared" ? "info" : "blocked"} />
+                      </div>
+                    </div>
+                  );
+                }
               },
               {
                 key: "payload",
                 header: "Payload",
                 render: (row) => {
                   const payload = parsePublicationPayload(row.payloadJson);
+                  const deliveryMeta = parsePublicationDeliveryMeta(row.payloadJson);
+
                   return (
                     <div>
                       <p className="font-medium text-slate-950">{payload?.title ?? "Payload incomplet"}</p>
                       <p className="text-slate-500">{payload?.body ?? row.errorMessage ?? "Aucun contenu"}</p>
+                      {deliveryMeta?.externalReference ? (
+                        <p className="mt-1 text-xs text-slate-500">Reference : {deliveryMeta.externalReference}</p>
+                      ) : null}
                     </div>
                   );
                 }

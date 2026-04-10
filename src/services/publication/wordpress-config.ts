@@ -1,3 +1,5 @@
+import { PublicationTargetKey } from "./publication-targets";
+
 const ALLOWED_WORDPRESS_STATUSES = new Set(["draft", "publish", "pending", "private"]);
 
 export type WordPressConfig = {
@@ -39,7 +41,14 @@ export function getWordPressConfig(): WordPressConfig {
   };
 }
 
-export function isWordPressTarget(target: string): boolean {
-  const normalizedTarget = target.trim().toLowerCase();
-  return normalizedTarget.includes("wordpress") || normalizedTarget.includes("wp");
+export function getPublicationTargetRuntimeMode(target: PublicationTargetKey): "mock" | "real" | "prepared" {
+  if (target === "wordpress-rest") {
+    return getWordPressConfig().enabled ? "real" : "mock";
+  }
+
+  if (target === "api-custom") {
+    return "prepared";
+  }
+
+  return "mock";
 }

@@ -19,3 +19,27 @@ export function parsePublicationPayload(value: unknown): PublicationPayloadDraft
 
   return { title, body, excerpt };
 }
+
+export function parsePublicationDeliveryMeta(value: unknown): {
+  providerKey?: string;
+  deliveryMode?: string;
+  externalReference?: string;
+} | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const providerKey = typeof value.providerKey === "string" ? value.providerKey : undefined;
+  const deliveryMode = typeof value.deliveryMode === "string" ? value.deliveryMode : undefined;
+  const externalReference = typeof value.externalReference === "string" ? value.externalReference : undefined;
+
+  if (!providerKey && !deliveryMode && !externalReference) {
+    return null;
+  }
+
+  return {
+    providerKey,
+    deliveryMode,
+    externalReference
+  };
+}

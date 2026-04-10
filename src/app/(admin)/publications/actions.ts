@@ -3,7 +3,7 @@
 import { AuditActionType, AuditEntityType, PublicationMode, PublicationStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
-import { PUBLICATION_MODE_OPTIONS } from "@/domain/options";
+import { PUBLICATION_MODE_OPTIONS, PUBLICATION_TARGET_OPTIONS } from "@/domain/options";
 import { getUserFacingActionErrorMessage, logServerActionError, rethrowIfRedirectError } from "@/lib/action-errors";
 import { createAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
@@ -34,7 +34,7 @@ export async function savePublicationJobAction(formData: FormData) {
 
   try {
     const raceId = assertRequiredString(formData.get("raceId"), "La course");
-    const target = assertRequiredString(formData.get("target"), "La cible", 120);
+    const target = parseEnumValue(formData.get("target"), "La cible de publication", PUBLICATION_TARGET_OPTIONS);
     const mode = parseEnumValue(formData.get("mode"), "Le mode de publication", PUBLICATION_MODE_OPTIONS) as PublicationMode;
     const payloadTitle = assertRequiredString(formData.get("payloadTitle"), "Le titre editorial", 160);
     const payloadBody = assertRequiredString(formData.get("payloadBody"), "Le corps editorial", 4000);
@@ -150,7 +150,16 @@ export async function publishPublicationJobAction(formData: FormData) {
     const result = await publishPublicationJob(id, user.id);
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, result.success ? "success" : "error", result.success ? "Publication mock effectuee." : result.errorMessage ?? "La publication a echoue.", getListExtras(formData));
+    redirectWithFeedback(
+      PATH,
+      result.success ? "success" : "error",
+      result.success
+        ? result.deliveryMode === "real"
+          ? "Publication transmise au provider reel."
+          : "Publication effectuee en mode mock."
+        : result.errorMessage ?? "La publication a echoue.",
+      getListExtras(formData)
+    );
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("publish-publication", error, {
