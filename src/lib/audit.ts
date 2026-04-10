@@ -8,7 +8,7 @@ export async function createAuditLog(input: {
   entityType: AuditEntityType;
   entityId: string;
   metadataJson?: unknown;
-}) {
+}): Promise<void> {
   const prisma = getPrisma();
 
   await prisma.auditLog.create({
@@ -17,7 +17,7 @@ export async function createAuditLog(input: {
       actionType: input.actionType,
       entityType: input.entityType,
       entityId: input.entityId,
-      metadataJson: input.metadataJson ? JSON.parse(JSON.stringify(input.metadataJson)) : undefined
+      metadataJson: input.metadataJson === undefined ? undefined : JSON.parse(JSON.stringify(input.metadataJson))
     }
   });
 }

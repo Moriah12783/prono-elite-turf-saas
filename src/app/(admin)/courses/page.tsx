@@ -1,4 +1,5 @@
-﻿import { Button } from "@/components/ui/button";
+import { ActionPolicyBadge } from "@/components/ui/action-policy-badge";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
@@ -8,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
+import { getRaceActionPolicy } from "@/domain/entity-action-policy";
 import { PUBLICATION_STATUS_OPTIONS, RACE_STATUS_OPTIONS } from "@/domain/options";
 import { formatDate, formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
@@ -60,52 +62,52 @@ export default async function CoursesPage({
           {showArchived && !editingRace ? (
             <p className="text-sm text-slate-500">Les courses archivees restent consultables et restaurables depuis cette vue.</p>
           ) : (
-          <form action={saveCourseAction} className="grid gap-4 md:grid-cols-2">
-            <input type="hidden" name="id" value={editingRace?.id ?? ""} />
-            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-            <Field label="Nom de la course">
-              <Input name="raceName" defaultValue={editingRace?.raceName ?? ""} required />
-            </Field>
-            <Field label="Hippodrome">
-              <Input name="venue" defaultValue={editingRace?.venue ?? ""} required />
-            </Field>
-            <Field label="Date">
-              <Input type="date" name="raceDate" defaultValue={editingRace ? editingRace.raceDate.toISOString().slice(0, 10) : ""} required />
-            </Field>
-            <Field label="Heure">
-              <Input type="time" name="raceTime" defaultValue={editingRace?.raceTime ?? ""} required />
-            </Field>
-            <Field label="Discipline">
-              <Input name="discipline" defaultValue={editingRace?.discipline ?? ""} required />
-            </Field>
-            <Field label="Distance (m)">
-              <Input type="number" name="distance" defaultValue={editingRace?.distance ?? ""} min={1} required />
-            </Field>
-            <Field label="Score qualite" hint="Optionnel, entre 0 et 100.">
-              <Input type="number" name="qualityScore" defaultValue={editingRace?.qualityScore ?? ""} min={0} max={100} />
-            </Field>
-            <Field label="Source externe" hint="Identifiant source optionnel.">
-              <Input name="externalSourceId" defaultValue={editingRace?.externalSourceId ?? ""} />
-            </Field>
-            <Field label="Statut metier">
-              <Select name="status" defaultValue={editingRace?.status ?? RACE_STATUS_OPTIONS[0]}>
-                {RACE_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>{formatStatusLabel(status)}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Statut publication">
-              <Select name="publicationStatus" defaultValue={editingRace?.publicationStatus ?? PUBLICATION_STATUS_OPTIONS[0]}>
-                {PUBLICATION_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>{formatStatusLabel(status)}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
-              <Button type="submit">{editingRace ? "Mettre a jour" : "Creer la course"}</Button>
-              {editingRace ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
-            </div>
-          </form>
+            <form action={saveCourseAction} className="grid gap-4 md:grid-cols-2">
+              <input type="hidden" name="id" value={editingRace?.id ?? ""} />
+              <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+              <Field label="Nom de la course">
+                <Input name="raceName" defaultValue={editingRace?.raceName ?? ""} required />
+              </Field>
+              <Field label="Hippodrome">
+                <Input name="venue" defaultValue={editingRace?.venue ?? ""} required />
+              </Field>
+              <Field label="Date">
+                <Input type="date" name="raceDate" defaultValue={editingRace ? editingRace.raceDate.toISOString().slice(0, 10) : ""} required />
+              </Field>
+              <Field label="Heure">
+                <Input type="time" name="raceTime" defaultValue={editingRace?.raceTime ?? ""} required />
+              </Field>
+              <Field label="Discipline">
+                <Input name="discipline" defaultValue={editingRace?.discipline ?? ""} required />
+              </Field>
+              <Field label="Distance (m)">
+                <Input type="number" name="distance" defaultValue={editingRace?.distance ?? ""} min={1} required />
+              </Field>
+              <Field label="Score qualite" hint="Optionnel, entre 0 et 100.">
+                <Input type="number" name="qualityScore" defaultValue={editingRace?.qualityScore ?? ""} min={0} max={100} />
+              </Field>
+              <Field label="Source externe" hint="Identifiant source optionnel.">
+                <Input name="externalSourceId" defaultValue={editingRace?.externalSourceId ?? ""} />
+              </Field>
+              <Field label="Statut metier">
+                <Select name="status" defaultValue={editingRace?.status ?? RACE_STATUS_OPTIONS[0]}>
+                  {RACE_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>{formatStatusLabel(status)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Statut publication">
+                <Select name="publicationStatus" defaultValue={editingRace?.publicationStatus ?? PUBLICATION_STATUS_OPTIONS[0]}>
+                  {PUBLICATION_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>{formatStatusLabel(status)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
+                <Button type="submit">{editingRace ? "Mettre a jour" : "Creer la course"}</Button>
+                {editingRace ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
+              </div>
+            </form>
           )}
         </Panel>
 
@@ -150,18 +152,37 @@ export default async function CoursesPage({
               {
                 key: "actions",
                 header: "Actions",
-                render: (race) => (
-                  <div className="flex flex-wrap gap-2">
-                    {!showArchived ? <LinkButton href={`/courses?edit=${race.id}`}>Editer</LinkButton> : null}
-                    <form action={showArchived ? restoreCourseAction : archiveCourseAction}>
-                      <input type="hidden" name="id" value={race.id} />
-                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
-                        {showArchived ? "Restaurer" : "Archiver"}
-                      </Button>
-                    </form>
-                  </div>
-                )
+                render: (race) => {
+                  const policy = getRaceActionPolicy(race);
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <ActionPolicyBadge label="Archivable" tone={policy.archive.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Supprimable" tone={policy.delete.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Restaurable" tone={policy.restore.allowed ? "allowed" : "blocked"} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!showArchived ? <LinkButton href={`/courses?edit=${race.id}`}>Editer</LinkButton> : null}
+                        {!showArchived && policy.archive.allowed ? (
+                          <form action={archiveCourseAction}>
+                            <input type="hidden" name="id" value={race.id} />
+                            <input type="hidden" name="archivedView" value="0" />
+                            <Button type="submit" variant="danger">Archiver</Button>
+                          </form>
+                        ) : null}
+                        {showArchived && policy.restore.allowed ? (
+                          <form action={restoreCourseAction}>
+                            <input type="hidden" name="id" value={race.id} />
+                            <input type="hidden" name="archivedView" value="1" />
+                            <Button type="submit" variant="secondary">Restaurer</Button>
+                          </form>
+                        ) : null}
+                      </div>
+                      <p className="max-w-xs text-xs text-slate-500">{policy.guidance}</p>
+                    </div>
+                  );
+                }
               }
             ]}
           />

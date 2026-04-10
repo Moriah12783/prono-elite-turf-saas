@@ -17,6 +17,10 @@ export type AdminRaceRecord = {
   archivedBy: {
     name: string;
   } | null;
+  publicationJobs: {
+    id: string;
+    status: PublicationStatus;
+  }[];
   prediction: {
     id: string;
     approvalStatus: ApprovalStatus;
@@ -71,9 +75,20 @@ export type AdminRunnerRecord = {
   isNonRunner: boolean;
   status: RunnerStatus;
   race: {
+    id: string;
     raceName: string;
     venue: string;
     raceTime: string;
+    archivedAt?: Date | null;
+    prediction: {
+      mainPick: string;
+      basePick: string;
+      outsiderPick: string;
+      speculativePick: string;
+    } | null;
+    publicationJobs: {
+      status: PublicationStatus;
+    }[];
   };
 };
 
@@ -97,6 +112,7 @@ export type AdminPredictionRecord = {
     name: string;
   } | null;
   race: {
+    archivedAt?: Date | null;
     raceName: string;
     venue: string;
     raceTime: string;
@@ -114,6 +130,7 @@ export type AdminResultRecord = {
     name: string;
   } | null;
   race: {
+    archivedAt?: Date | null;
     raceName: string;
     venue: string;
     raceTime: string;

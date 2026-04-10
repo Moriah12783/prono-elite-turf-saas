@@ -42,6 +42,12 @@ export async function getRaces(options?: ArchiveFilterOptions) {
       archivedBy: {
         select: { name: true }
       },
+      publicationJobs: {
+        select: {
+          id: true,
+          status: true
+        }
+      },
       prediction: {
         select: { id: true, approvalStatus: true }
       },
@@ -97,10 +103,25 @@ export async function getRunners() {
     include: {
       race: {
         select: {
+          id: true,
           raceName: true,
           venue: true,
           raceTime: true,
-          raceDate: true
+          raceDate: true,
+          archivedAt: true,
+          publicationJobs: {
+            select: {
+              status: true
+            }
+          },
+          prediction: {
+            select: {
+              mainPick: true,
+              basePick: true,
+              outsiderPick: true,
+              speculativePick: true
+            }
+          }
         }
       }
     },
@@ -133,6 +154,7 @@ export async function getPredictions(options?: ArchiveFilterOptions) {
       },
       race: {
         select: {
+          archivedAt: true,
           raceName: true,
           venue: true,
           raceTime: true,
@@ -173,6 +195,7 @@ export async function getResults(options?: ArchiveFilterOptions) {
       },
       race: {
         select: {
+          archivedAt: true,
           raceName: true,
           venue: true,
           raceTime: true,
@@ -222,6 +245,7 @@ export async function getPublicationRows(options?: ArchiveFilterOptions) {
       race: {
         select: {
           id: true,
+          archivedAt: true,
           raceName: true,
           venue: true,
           raceTime: true,

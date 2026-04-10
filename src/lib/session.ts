@@ -1,4 +1,4 @@
-﻿import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { getAuthSecret } from "@/lib/auth-config";
 
@@ -10,17 +10,30 @@ export type SessionPayload = {
   exp: number;
 };
 
-function sign(value: string) {
+function sign(value: string): string {
   return createHmac("sha256", getAuthSecret()).update(value).digest("base64url");
 }
 
-export function encodeSession(payload: SessionPayload) {
+function isSessionPayload(value: unknown): value is SessionPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as SessionPayload).userId === "string" &&
+    typeof (value as SessionPayload).role === "string" &&
+    typeof (value as SessionPayload).email === "string" &&
+    typeof (value as SessionPayload).name === "string" &&
+    typeof (value as SessionPayload).exp === "number" &&
+    Number.isFinite((value as SessionPayload).exp)
+  );
+}
+
+export function encodeSession(payload: SessionPayload): string {
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = sign(encodedPayload);
   return `${encodedPayload}.${signature}`;
 }
 
-export function decodeSession(token: string) {
+export function decodeSession(token: string): SessionPayload | null {
   const [encodedPayload, signature] = token.split(".");
 
   if (!encodedPayload || !signature) {
@@ -36,13 +49,17 @@ export function decodeSession(token: string) {
   }
 
   try {
-    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as SessionPayload;
+    const parsed = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as unknown;
 
-    if (payload.exp <= Date.now()) {
+    if (!isSessionPayload(parsed)) {
       return null;
     }
 
-    return payload;
+    if (parsed.exp <= Date.now()) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }

@@ -3,6 +3,12 @@ import { PublicationStatus } from "@prisma/client";
 import { DeletionBlockedError } from "@/lib/action-errors";
 import { getPrisma } from "@/lib/prisma";
 
+const BLOCKING_PUBLICATION_STATUSES: PublicationStatus[] = [
+  PublicationStatus.READY,
+  PublicationStatus.BLOCKED,
+  PublicationStatus.PUBLISHED
+];
+
 export async function ensureCourseDeletionAllowed(courseId: string) {
   const prisma = getPrisma();
   const course = await prisma.race.findUnique({
@@ -82,7 +88,7 @@ export async function ensureRunnerDeletionAllowed(runnerId: string) {
   }
 
   const blockingPublication = runner.race.publicationJobs.find((job) =>
-    [PublicationStatus.READY, PublicationStatus.BLOCKED, PublicationStatus.PUBLISHED].includes(job.status)
+    BLOCKING_PUBLICATION_STATUSES.includes(job.status)
   );
 
   if (blockingPublication) {
@@ -122,7 +128,7 @@ export async function ensurePredictionDeletionAllowed(predictionId: string) {
   }
 
   const blockingPublication = prediction.race.publicationJobs.find((job) =>
-    [PublicationStatus.READY, PublicationStatus.BLOCKED, PublicationStatus.PUBLISHED].includes(job.status)
+    BLOCKING_PUBLICATION_STATUSES.includes(job.status)
   );
 
   if (blockingPublication) {

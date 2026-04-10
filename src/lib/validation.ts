@@ -1,4 +1,4 @@
-﻿export type FeedbackTone = "success" | "error";
+export type FeedbackTone = "success" | "error";
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -7,7 +7,7 @@ export class ValidationError extends Error {
   }
 }
 
-export function assertRequiredString(value: FormDataEntryValue | null, label: string, maxLength = 255) {
+export function assertRequiredString(value: FormDataEntryValue | null, label: string, maxLength = 255): string {
   const stringValue = value?.toString().trim() ?? "";
 
   if (!stringValue) {
@@ -21,7 +21,7 @@ export function assertRequiredString(value: FormDataEntryValue | null, label: st
   return stringValue;
 }
 
-export function parseOptionalString(value: FormDataEntryValue | null, maxLength = 255) {
+export function parseOptionalString(value: FormDataEntryValue | null, maxLength = 255): string | null {
   const stringValue = value?.toString().trim() ?? "";
 
   if (!stringValue) {
@@ -29,13 +29,17 @@ export function parseOptionalString(value: FormDataEntryValue | null, maxLength 
   }
 
   if (stringValue.length > maxLength) {
-    throw new ValidationError(`La valeur saisie est trop longue.`);
+    throw new ValidationError("La valeur saisie est trop longue.");
   }
 
   return stringValue;
 }
 
-export function parseInteger(value: FormDataEntryValue | null, label: string, options?: { min?: number; max?: number }) {
+export function parseInteger(
+  value: FormDataEntryValue | null,
+  label: string,
+  options?: { min?: number; max?: number }
+): number {
   const parsed = Number(assertRequiredString(value, label));
 
   if (!Number.isInteger(parsed)) {
@@ -53,7 +57,11 @@ export function parseInteger(value: FormDataEntryValue | null, label: string, op
   return parsed;
 }
 
-export function parseOptionalInteger(value: FormDataEntryValue | null, label: string, options?: { min?: number; max?: number }) {
+export function parseOptionalInteger(
+  value: FormDataEntryValue | null,
+  label: string,
+  options?: { min?: number; max?: number }
+): number | null {
   if (!value || !value.toString().trim()) {
     return null;
   }
@@ -61,7 +69,11 @@ export function parseOptionalInteger(value: FormDataEntryValue | null, label: st
   return parseInteger(value, label, options);
 }
 
-export function parseOptionalFloat(value: FormDataEntryValue | null, label: string, options?: { min?: number; max?: number }) {
+export function parseOptionalFloat(
+  value: FormDataEntryValue | null,
+  label: string,
+  options?: { min?: number; max?: number }
+): number | null {
   if (!value || !value.toString().trim()) {
     return null;
   }
@@ -83,11 +95,11 @@ export function parseOptionalFloat(value: FormDataEntryValue | null, label: stri
   return parsed;
 }
 
-export function parseBoolean(value: FormDataEntryValue | null) {
+export function parseBoolean(value: FormDataEntryValue | null): boolean {
   return value?.toString() === "on" || value?.toString() === "true";
 }
 
-export function parseDate(value: FormDataEntryValue | null, label: string) {
+export function parseDate(value: FormDataEntryValue | null, label: string): Date {
   const date = new Date(assertRequiredString(value, label));
 
   if (Number.isNaN(date.getTime())) {
@@ -97,7 +109,7 @@ export function parseDate(value: FormDataEntryValue | null, label: string) {
   return date;
 }
 
-export function parseTime(value: FormDataEntryValue | null, label: string) {
+export function parseTime(value: FormDataEntryValue | null, label: string): string {
   const time = assertRequiredString(value, label, 5);
 
   if (!/^\d{2}:\d{2}$/.test(time)) {
@@ -107,14 +119,14 @@ export function parseTime(value: FormDataEntryValue | null, label: string) {
   return time;
 }
 
-export function combineDateAndTime(date: Date, time: string) {
+export function combineDateAndTime(date: Date, time: string): Date {
   const [hours, minutes] = time.split(":").map(Number);
   const result = new Date(date);
   result.setUTCHours(hours, minutes, 0, 0);
   return result;
 }
 
-export function parseJsonArray(value: FormDataEntryValue | null, label: string) {
+export function parseJsonArray(value: FormDataEntryValue | null, label: string): string[] {
   const raw = assertRequiredString(value, label, 500);
   const parts = raw
     .split(",")
@@ -128,7 +140,7 @@ export function parseJsonArray(value: FormDataEntryValue | null, label: string) 
   return parts;
 }
 
-export function asStringValue(value: string | string[] | undefined) {
+export function asStringValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
@@ -136,12 +148,12 @@ export function parseEnumValue<T extends string>(
   value: FormDataEntryValue | null,
   label: string,
   allowedValues: readonly T[]
-) {
-  const selected = assertRequiredString(value, label) as T;
+): T {
+  const selected = assertRequiredString(value, label);
 
-  if (!allowedValues.includes(selected)) {
+  if (!allowedValues.includes(selected as T)) {
     throw new ValidationError(`${label} est invalide.`);
   }
 
-  return selected;
+  return selected as T;
 }

@@ -1,4 +1,5 @@
-﻿import { Button } from "@/components/ui/button";
+import { ActionPolicyBadge } from "@/components/ui/action-policy-badge";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
 import { Textarea } from "@/components/ui/textarea";
+import { getPredictionActionPolicy } from "@/domain/entity-action-policy";
 import { APPROVAL_STATUS_OPTIONS, CONFIDENCE_LABEL_OPTIONS } from "@/domain/options";
 import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
@@ -33,9 +35,7 @@ export default async function PredictionsPage({
     getRacesForSelect(),
     editId ? getPredictionById(editId) : Promise.resolve(null)
   ]);
-  const selectableRaces = editingPrediction
-    ? races
-    : races.filter((race) => !race.prediction);
+  const selectableRaces = editingPrediction ? races : races.filter((race) => !race.prediction);
 
   return (
     <div className="space-y-6">
@@ -65,57 +65,57 @@ export default async function PredictionsPage({
           {showArchived && !editingPrediction ? (
             <p className="text-sm text-slate-500">Les pronostics archives restent consultables et restaurables depuis cette vue.</p>
           ) : (
-          <form action={savePredictionAction} className="grid gap-4 md:grid-cols-2">
-            <input type="hidden" name="id" value={editingPrediction?.id ?? ""} />
-            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-            <Field label="Course">
-              <Select name="raceId" defaultValue={editingPrediction?.raceId ?? selectableRaces[0]?.id ?? ""} required>
-                {selectableRaces.map((race) => (
-                  <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Indice de confiance">
-              <Select name="confidenceLabel" defaultValue={editingPrediction?.confidenceLabel ?? CONFIDENCE_LABEL_OPTIONS[0]}>
-                {CONFIDENCE_LABEL_OPTIONS.map((value) => (
-                  <option key={value} value={value}>{formatStatusLabel(value)}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Selection principale">
-              <Input name="mainPick" defaultValue={editingPrediction?.mainPick ?? ""} required />
-            </Field>
-            <Field label="Base">
-              <Input name="basePick" defaultValue={editingPrediction?.basePick ?? ""} required />
-            </Field>
-            <Field label="Outsider">
-              <Input name="outsiderPick" defaultValue={editingPrediction?.outsiderPick ?? ""} required />
-            </Field>
-            <Field label="Profil speculatif">
-              <Input name="speculativePick" defaultValue={editingPrediction?.speculativePick ?? ""} required />
-            </Field>
-            <Field label="Statut d'approbation">
-              <Select name="approvalStatus" defaultValue={editingPrediction?.approvalStatus ?? APPROVAL_STATUS_OPTIONS[0]}>
-                {APPROVAL_STATUS_OPTIONS.map((value) => (
-                  <option key={value} value={value}>{formatStatusLabel(value)}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="md:col-span-2">
-              <Field label="Analyse breve">
-                <Textarea name="analysisText" defaultValue={editingPrediction?.analysisText ?? ""} required />
+            <form action={savePredictionAction} className="grid gap-4 md:grid-cols-2">
+              <input type="hidden" name="id" value={editingPrediction?.id ?? ""} />
+              <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+              <Field label="Course">
+                <Select name="raceId" defaultValue={editingPrediction?.raceId ?? selectableRaces[0]?.id ?? ""} required>
+                  {selectableRaces.map((race) => (
+                    <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
+                  ))}
+                </Select>
               </Field>
-            </div>
-            <div className="md:col-span-2">
-              <Field label="Note de prudence">
-                <Textarea name="cautionText" defaultValue={editingPrediction?.cautionText ?? ""} required />
+              <Field label="Indice de confiance">
+                <Select name="confidenceLabel" defaultValue={editingPrediction?.confidenceLabel ?? CONFIDENCE_LABEL_OPTIONS[0]}>
+                  {CONFIDENCE_LABEL_OPTIONS.map((value) => (
+                    <option key={value} value={value}>{formatStatusLabel(value)}</option>
+                  ))}
+                </Select>
               </Field>
-            </div>
-            <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={!selectableRaces.length && !editingPrediction}>{editingPrediction ? "Mettre a jour" : "Creer le pronostic"}</Button>
-              {editingPrediction ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
-            </div>
-          </form>
+              <Field label="Selection principale">
+                <Input name="mainPick" defaultValue={editingPrediction?.mainPick ?? ""} required />
+              </Field>
+              <Field label="Base">
+                <Input name="basePick" defaultValue={editingPrediction?.basePick ?? ""} required />
+              </Field>
+              <Field label="Outsider">
+                <Input name="outsiderPick" defaultValue={editingPrediction?.outsiderPick ?? ""} required />
+              </Field>
+              <Field label="Profil speculatif">
+                <Input name="speculativePick" defaultValue={editingPrediction?.speculativePick ?? ""} required />
+              </Field>
+              <Field label="Statut d'approbation">
+                <Select name="approvalStatus" defaultValue={editingPrediction?.approvalStatus ?? APPROVAL_STATUS_OPTIONS[0]}>
+                  {APPROVAL_STATUS_OPTIONS.map((value) => (
+                    <option key={value} value={value}>{formatStatusLabel(value)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="Analyse breve">
+                  <Textarea name="analysisText" defaultValue={editingPrediction?.analysisText ?? ""} required />
+                </Field>
+              </div>
+              <div className="md:col-span-2">
+                <Field label="Note de prudence">
+                  <Textarea name="cautionText" defaultValue={editingPrediction?.cautionText ?? ""} required />
+                </Field>
+              </div>
+              <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
+                <Button type="submit" disabled={!selectableRaces.length && !editingPrediction}>{editingPrediction ? "Mettre a jour" : "Creer le pronostic"}</Button>
+                {editingPrediction ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
+              </div>
+            </form>
           )}
           {!showArchived && !editingPrediction && !selectableRaces.length ? (
             <p className="mt-4 text-sm text-slate-500">
@@ -170,18 +170,37 @@ export default async function PredictionsPage({
               {
                 key: "actions",
                 header: "Actions",
-                render: (row) => (
-                  <div className="flex flex-wrap gap-2">
-                    {!showArchived ? <LinkButton href={`/predictions?edit=${row.id}`}>Editer</LinkButton> : null}
-                    <form action={showArchived ? restorePredictionAction : archivePredictionAction}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
-                        {showArchived ? "Restaurer" : "Archiver"}
-                      </Button>
-                    </form>
-                  </div>
-                )
+                render: (row) => {
+                  const policy = getPredictionActionPolicy(row);
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <ActionPolicyBadge label="Archivable" tone={policy.archive.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Supprimable" tone={policy.delete.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Restaurable" tone={policy.restore.allowed ? "allowed" : "blocked"} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!showArchived ? <LinkButton href={`/predictions?edit=${row.id}`}>Editer</LinkButton> : null}
+                        {!showArchived && policy.archive.allowed ? (
+                          <form action={archivePredictionAction}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <input type="hidden" name="archivedView" value="0" />
+                            <Button type="submit" variant="danger">Archiver</Button>
+                          </form>
+                        ) : null}
+                        {showArchived && policy.restore.allowed ? (
+                          <form action={restorePredictionAction}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <input type="hidden" name="archivedView" value="1" />
+                            <Button type="submit" variant="secondary">Restaurer</Button>
+                          </form>
+                        ) : null}
+                      </div>
+                      <p className="max-w-xs text-xs text-slate-500">{policy.guidance}</p>
+                    </div>
+                  );
+                }
               }
             ]}
           />

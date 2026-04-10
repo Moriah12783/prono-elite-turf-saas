@@ -1,4 +1,5 @@
-﻿import { Button } from "@/components/ui/button";
+import { ActionPolicyBadge } from "@/components/ui/action-policy-badge";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
@@ -8,6 +9,7 @@ import { Panel } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
+import { getResultActionPolicy } from "@/domain/entity-action-policy";
 import { RESULT_STATUS_OPTIONS } from "@/domain/options";
 import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
@@ -32,9 +34,7 @@ export default async function ResultsPage({
     getRacesForSelect(),
     editId ? getResultById(editId) : Promise.resolve(null)
   ]);
-  const selectableRaces = editingResult
-    ? races
-    : races.filter((race) => !race.result);
+  const selectableRaces = editingResult ? races : races.filter((race) => !race.result);
 
   return (
     <div className="space-y-6">
@@ -64,33 +64,33 @@ export default async function ResultsPage({
           {showArchived && !editingResult ? (
             <p className="text-sm text-slate-500">Les resultats archives restent consultables et restaurables depuis cette vue.</p>
           ) : (
-          <form action={saveResultAction} className="grid gap-4 md:grid-cols-2">
-            <input type="hidden" name="id" value={editingResult?.id ?? ""} />
-            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-            <Field label="Course">
-              <Select name="raceId" defaultValue={editingResult?.raceId ?? selectableRaces[0]?.id ?? ""} required>
-                {selectableRaces.map((race) => (
-                  <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Statut officiel">
-              <Select name="officialStatus" defaultValue={editingResult?.officialStatus ?? RESULT_STATUS_OPTIONS[0]}>
-                {RESULT_STATUS_OPTIONS.map((value) => (
-                  <option key={value} value={value}>{formatStatusLabel(value)}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="md:col-span-2">
-              <Field label="Arrivee officielle" hint="Exemple : 3,8,6">
-                <Input name="officialArrival" defaultValue={Array.isArray(editingResult?.officialArrival) ? editingResult.officialArrival.join(",") : ""} required />
+            <form action={saveResultAction} className="grid gap-4 md:grid-cols-2">
+              <input type="hidden" name="id" value={editingResult?.id ?? ""} />
+              <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+              <Field label="Course">
+                <Select name="raceId" defaultValue={editingResult?.raceId ?? selectableRaces[0]?.id ?? ""} required>
+                  {selectableRaces.map((race) => (
+                    <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
+                  ))}
+                </Select>
               </Field>
-            </div>
-            <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={!selectableRaces.length && !editingResult}>{editingResult ? "Mettre a jour" : "Creer le resultat"}</Button>
-              {editingResult ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
-            </div>
-          </form>
+              <Field label="Statut officiel">
+                <Select name="officialStatus" defaultValue={editingResult?.officialStatus ?? RESULT_STATUS_OPTIONS[0]}>
+                  {RESULT_STATUS_OPTIONS.map((value) => (
+                    <option key={value} value={value}>{formatStatusLabel(value)}</option>
+                  ))}
+                </Select>
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="Arrivee officielle" hint="Exemple : 3,8,6">
+                  <Input name="officialArrival" defaultValue={Array.isArray(editingResult?.officialArrival) ? editingResult.officialArrival.join(",") : ""} required />
+                </Field>
+              </div>
+              <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
+                <Button type="submit" disabled={!selectableRaces.length && !editingResult}>{editingResult ? "Mettre a jour" : "Creer le resultat"}</Button>
+                {editingResult ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
+              </div>
+            </form>
           )}
           {!showArchived && !editingResult && !selectableRaces.length ? (
             <p className="mt-4 text-sm text-slate-500">
@@ -119,7 +119,7 @@ export default async function ResultsPage({
               {
                 key: "officialArrival",
                 header: "Arrivee",
-                render: (row) => row.officialArrival.join(" - ") || "En attente"
+                render: (row) => (Array.isArray(row.officialArrival) ? row.officialArrival.join(" - ") : "") || "En attente"
               },
               {
                 key: "comparison",
@@ -148,18 +148,37 @@ export default async function ResultsPage({
               {
                 key: "actions",
                 header: "Actions",
-                render: (row) => (
-                  <div className="flex flex-wrap gap-2">
-                    {!showArchived ? <LinkButton href={`/results?edit=${row.id}`}>Editer</LinkButton> : null}
-                    <form action={showArchived ? restoreResultAction : archiveResultAction}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
-                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
-                        {showArchived ? "Restaurer" : "Archiver"}
-                      </Button>
-                    </form>
-                  </div>
-                )
+                render: (row) => {
+                  const policy = getResultActionPolicy(row);
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <ActionPolicyBadge label="Archivable" tone={policy.archive.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Supprimable" tone={policy.delete.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Restaurable" tone={policy.restore.allowed ? "allowed" : "blocked"} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!showArchived ? <LinkButton href={`/results?edit=${row.id}`}>Editer</LinkButton> : null}
+                        {!showArchived && policy.archive.allowed ? (
+                          <form action={archiveResultAction}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <input type="hidden" name="archivedView" value="0" />
+                            <Button type="submit" variant="danger">Archiver</Button>
+                          </form>
+                        ) : null}
+                        {showArchived && policy.restore.allowed ? (
+                          <form action={restoreResultAction}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <input type="hidden" name="archivedView" value="1" />
+                            <Button type="submit" variant="secondary">Restaurer</Button>
+                          </form>
+                        ) : null}
+                      </div>
+                      <p className="max-w-xs text-xs text-slate-500">{policy.guidance}</p>
+                    </div>
+                  );
+                }
               }
             ]}
           />

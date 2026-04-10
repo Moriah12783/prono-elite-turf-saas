@@ -1,4 +1,5 @@
-﻿import { Button } from "@/components/ui/button";
+import { ActionPolicyBadge } from "@/components/ui/action-policy-badge";
+import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
+import { getRunnerActionPolicy } from "@/domain/entity-action-policy";
 import { RUNNER_STATUS_OPTIONS } from "@/domain/options";
 import { formatOdds, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
@@ -132,15 +134,29 @@ export default async function RunnersPage({
               {
                 key: "actions",
                 header: "Actions",
-                render: (row) => (
-                  <div className="flex flex-wrap gap-2">
-                    <LinkButton href={`/runners?edit=${row.id}`}>Editer</LinkButton>
-                    <form action={deleteRunnerAction}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit" variant="danger">Supprimer</Button>
-                    </form>
-                  </div>
-                )
+                render: (row) => {
+                  const policy = getRunnerActionPolicy(row);
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        <ActionPolicyBadge label="Archivable" tone={policy.archive.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Supprimable" tone={policy.delete.allowed ? "allowed" : "blocked"} />
+                        <ActionPolicyBadge label="Restaurable" tone={policy.restore.allowed ? "allowed" : "blocked"} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <LinkButton href={`/runners?edit=${row.id}`}>Editer</LinkButton>
+                        {policy.delete.allowed ? (
+                          <form action={deleteRunnerAction}>
+                            <input type="hidden" name="id" value={row.id} />
+                            <Button type="submit" variant="danger">Supprimer</Button>
+                          </form>
+                        ) : null}
+                      </div>
+                      <p className="max-w-xs text-xs text-slate-500">{policy.guidance}</p>
+                    </div>
+                  );
+                }
               }
             ]}
           />
@@ -149,4 +165,3 @@ export default async function RunnersPage({
     </div>
   );
 }
-

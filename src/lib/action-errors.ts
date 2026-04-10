@@ -9,7 +9,11 @@ export class DeletionBlockedError extends Error {
   }
 }
 
-function isRedirectError(error: unknown) {
+type RedirectLikeError = {
+  digest: string;
+};
+
+function isRedirectError(error: unknown): error is RedirectLikeError {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -19,20 +23,20 @@ function isRedirectError(error: unknown) {
   );
 }
 
-export function rethrowIfRedirectError(error: unknown) {
+export function rethrowIfRedirectError(error: unknown): void {
   if (isRedirectError(error)) {
     throw error;
   }
 }
 
-export function logServerActionError(actionName: string, error: unknown, context?: Record<string, unknown>) {
+export function logServerActionError(actionName: string, error: unknown, context?: Record<string, unknown>): void {
   console.error(`[server-action:${actionName}]`, {
     context,
     error
   });
 }
 
-export function getUserFacingActionErrorMessage(error: unknown, fallbackMessage: string) {
+export function getUserFacingActionErrorMessage(error: unknown, fallbackMessage: string): string {
   if (error instanceof ValidationError) {
     return error.message;
   }
@@ -56,7 +60,7 @@ export function getUserFacingActionErrorMessage(error: unknown, fallbackMessage:
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
-      const target = Array.isArray(error.meta?.target) ? error.meta?.target.join(", ") : String(error.meta?.target ?? "");
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(", ") : String(error.meta?.target ?? "");
 
       if (target.includes("external_source_id")) {
         return "Cet identifiant de source externe est deja utilise par une autre course.";

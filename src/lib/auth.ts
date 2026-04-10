@@ -1,11 +1,19 @@
-﻿import { cookies } from "next/headers";
+import { UserRole } from "@prisma/client";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { SESSION_COOKIE_NAME, SESSION_DURATION_SECONDS } from "@/lib/auth-config";
 import { getPrisma } from "@/lib/prisma";
 import { decodeSession, encodeSession, type SessionPayload } from "@/lib/session";
 
-export async function createUserSession(payload: Omit<SessionPayload, "exp">) {
+type CurrentUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+};
+
+export async function createUserSession(payload: Omit<SessionPayload, "exp">): Promise<void> {
   const cookieStore = await cookies();
   const token = encodeSession({
     ...payload,
@@ -21,12 +29,12 @@ export async function createUserSession(payload: Omit<SessionPayload, "exp">) {
   });
 }
 
-export async function clearUserSession() {
+export async function clearUserSession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete({ name: SESSION_COOKIE_NAME, path: "/" });
 }
 
-export async function getCurrentSession() {
+export async function getCurrentSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -37,7 +45,7 @@ export async function getCurrentSession() {
   return decodeSession(token);
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<CurrentUser | null> {
   const session = await getCurrentSession();
 
   if (!session) {
@@ -62,13 +70,12 @@ export async function getCurrentUser() {
   return user;
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<CurrentUser> {
   const user = await getCurrentUser();
 
-  if (!user || (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")) {
+  if (!user || (user.role !== UserRole.ADMIN && user.role !== UserRole.SUPER_ADMIN)) {
     redirect("/login");
   }
 
   return user;
 }
-

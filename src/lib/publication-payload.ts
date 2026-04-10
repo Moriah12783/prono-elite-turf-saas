@@ -1,14 +1,17 @@
-﻿import { PublicationPayloadDraft } from "@/domain/types";
+import { PublicationPayloadDraft } from "@/domain/types";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 export function parsePublicationPayload(value: unknown): PublicationPayloadDraft | null {
-  if (!value || typeof value !== "object") {
+  if (!isRecord(value)) {
     return null;
   }
 
-  const candidate = value as Record<string, unknown>;
-  const title = typeof candidate.title === "string" ? candidate.title.trim() : "";
-  const body = typeof candidate.body === "string" ? candidate.body.trim() : "";
-  const excerpt = typeof candidate.excerpt === "string" ? candidate.excerpt.trim() : undefined;
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  const body = typeof value.body === "string" ? value.body.trim() : "";
+  const excerpt = typeof value.excerpt === "string" ? value.excerpt.trim() : undefined;
 
   if (!title && !body && !excerpt) {
     return null;
