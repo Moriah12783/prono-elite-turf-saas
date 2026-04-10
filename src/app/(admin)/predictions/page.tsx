@@ -14,7 +14,7 @@ import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
 import { getPredictionById, getPredictions, getRacesForSelect } from "@/services/backoffice-service";
 
-import { deletePredictionAction, savePredictionAction } from "./actions";
+import { archivePredictionAction, restorePredictionAction, savePredictionAction } from "./actions";
 
 export default async function PredictionsPage({
   searchParams
@@ -24,10 +24,12 @@ export default async function PredictionsPage({
   const params = await searchParams;
   const editId = asStringValue(params.edit);
   const message = asStringValue(params.message);
+  const showArchived = asStringValue(params.archived) === "1";
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
+  const listHref = showArchived ? "/predictions?archived=1" : "/predictions";
 
   const [rows, races, editingPrediction] = await Promise.all([
-    getPredictions(),
+    getPredictions({ archived: showArchived }),
     getRacesForSelect(),
     editId ? getPredictionById(editId) : Promise.resolve(null)
   ]);
@@ -43,12 +45,29 @@ export default async function PredictionsPage({
         description="CRUD admin pour la structure pronostic du cahier des charges : selection principale, base, outsider, profil speculatif, confiance et validation."
       />
 
+      <div className="flex justify-end">
+        <LinkButton href={showArchived ? "/predictions" : "/predictions?archived=1"}>
+          {showArchived ? "Voir les pronostics actifs" : "Voir les archives"}
+        </LinkButton>
+      </div>
+
       {message ? <Notice tone={tone} message={message} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr,1.35fr]">
-        <Panel title={editingPrediction ? "Modifier un pronostic" : "Nouveau pronostic"} description="Formulaire aligne sur la structure metier Elite Turf, sans logique IA prematuree.">
+        <Panel
+          title={showArchived && !editingPrediction ? "Mode archive" : editingPrediction ? "Modifier un pronostic" : "Nouveau pronostic"}
+          description={
+            showArchived && !editingPrediction
+              ? "La creation est desactivee dans la vue archive. Restaurez un pronostic ou revenez a la vue active."
+              : "Formulaire aligne sur la structure metier Elite Turf, sans logique IA prematuree."
+          }
+        >
+          {showArchived && !editingPrediction ? (
+            <p className="text-sm text-slate-500">Les pronostics archives restent consultables et restaurables depuis cette vue.</p>
+          ) : (
           <form action={savePredictionAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingPrediction?.id ?? ""} />
+            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
             <Field label="Course">
               <Select name="raceId" defaultValue={editingPrediction?.raceId ?? selectableRaces[0]?.id ?? ""} required>
                 {selectableRaces.map((race) => (
@@ -94,17 +113,21 @@ export default async function PredictionsPage({
             </div>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
               <Button type="submit" disabled={!selectableRaces.length && !editingPrediction}>{editingPrediction ? "Mettre a jour" : "Creer le pronostic"}</Button>
-              {editingPrediction ? <LinkButton href="/predictions">Annuler</LinkButton> : null}
+              {editingPrediction ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
             </div>
           </form>
-          {!editingPrediction && !selectableRaces.length ? (
+          )}
+          {!showArchived && !editingPrediction && !selectableRaces.length ? (
             <p className="mt-4 text-sm text-slate-500">
               Toutes les courses ont deja un pronostic. Editez une fiche existante ou creez une nouvelle course.
             </p>
           ) : null}
         </Panel>
 
-        <Panel title="Liste des pronostics" description="Suivi des pronostics generes, du niveau de confiance et du statut editorial.">
+        <Panel
+          title={showArchived ? "Pronostics archives" : "Liste des pronostics"}
+          description={showArchived ? "Historique archive des fiches pronostic." : "Suivi des pronostics generes, du niveau de confiance et du statut editorial."}
+        >
           <SimpleTable
             rows={rows}
             columns={[
@@ -135,6 +158,12 @@ export default async function PredictionsPage({
                   <div className="space-y-2">
                     <StatusBadge status={row.approvalStatus} />
                     <p className="text-xs text-slate-500">{formatDateTime(row.generatedAt)}</p>
+                    {row.archivedAt ? (
+                      <p className="text-xs text-slate-500">
+                        Archive le {formatDateTime(row.archivedAt)}
+                        {row.archivedBy ? ` par ${row.archivedBy.name}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 )
               },
@@ -143,10 +172,13 @@ export default async function PredictionsPage({
                 header: "Actions",
                 render: (row) => (
                   <div className="flex flex-wrap gap-2">
-                    <LinkButton href={`/predictions?edit=${row.id}`}>Editer</LinkButton>
-                    <form action={deletePredictionAction}>
+                    {!showArchived ? <LinkButton href={`/predictions?edit=${row.id}`}>Editer</LinkButton> : null}
+                    <form action={showArchived ? restorePredictionAction : archivePredictionAction}>
                       <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit" variant="danger">Supprimer</Button>
+                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
+                        {showArchived ? "Restaurer" : "Archiver"}
+                      </Button>
                     </form>
                   </div>
                 )

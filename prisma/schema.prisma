@@ -97,6 +97,10 @@ model User {
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
   approvedPredictions Prediction[] @relation("PredictionApprovedBy")
+  archivedRaces       Race[]       @relation("RaceArchivedBy")
+  archivedPredictions Prediction[] @relation("PredictionArchivedBy")
+  archivedResults     Result[]     @relation("ResultArchivedBy")
+  archivedPublications PublicationJob[] @relation("PublicationArchivedBy")
   auditLogs           AuditLog[]
 
   @@map("users")
@@ -116,12 +120,15 @@ model Race {
   status            RaceStatus
   qualityScore      Int?              @map("quality_score")
   publicationStatus PublicationStatus @default(DRAFT) @map("publication_status")
+  archivedAt        DateTime?         @map("archived_at")
+  archivedById      String?           @map("archived_by")
   createdAt         DateTime          @default(now()) @map("created_at")
   updatedAt         DateTime          @updatedAt @map("updated_at")
   runners           Runner[]
   prediction        Prediction?
   result            Result?
   publicationJobs   PublicationJob[]
+  archivedBy        User?             @relation("RaceArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
 
   @@index([raceDate, status])
   @@index([publicationStatus])
@@ -161,10 +168,13 @@ model Prediction {
   approvalStatus  ApprovalStatus  @default(DRAFT) @map("approval_status")
   generatedAt     DateTime        @default(now()) @map("generated_at")
   approvedById    String?         @map("approved_by")
+  archivedAt      DateTime?       @map("archived_at")
+  archivedById    String?         @map("archived_by")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
   race            Race            @relation(fields: [raceId], references: [id], onDelete: Restrict)
   approvedBy      User?           @relation("PredictionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  archivedBy      User?           @relation("PredictionArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
 
   @@index([approvalStatus])
   @@map("predictions")
@@ -176,9 +186,12 @@ model Result {
   officialArrival Json                 @map("official_arrival")
   officialStatus  ResultOfficialStatus @default(PENDING) @map("official_status")
   importedAt      DateTime?            @map("imported_at")
+  archivedAt      DateTime?            @map("archived_at")
+  archivedById    String?              @map("archived_by")
   createdAt       DateTime             @default(now()) @map("created_at")
   updatedAt       DateTime             @updatedAt @map("updated_at")
   race            Race                 @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  archivedBy      User?                @relation("ResultArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
 
   @@index([officialStatus])
   @@map("results")
@@ -193,9 +206,12 @@ model PublicationJob {
   status       PublicationStatus @default(DRAFT)
   publishedAt  DateTime?         @map("published_at")
   errorMessage String?           @map("error_message")
+  archivedAt   DateTime?         @map("archived_at")
+  archivedById String?           @map("archived_by")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
   race         Race              @relation(fields: [raceId], references: [id], onDelete: Restrict)
+  archivedBy   User?             @relation("PublicationArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
 
   @@index([raceId, status])
   @@map("publication_jobs")

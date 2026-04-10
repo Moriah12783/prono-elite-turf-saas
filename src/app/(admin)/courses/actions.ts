@@ -22,6 +22,10 @@ import {
 
 const PATH = "/courses";
 
+function getListExtras(formData: FormData) {
+  return formData.get("archivedView")?.toString() === "1" ? { archived: "1" } : undefined;
+}
+
 export async function saveCourseAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
@@ -91,7 +95,7 @@ export async function saveCourseAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", id ? "Course mise a jour." : "Course creee.");
+    redirectWithFeedback(PATH, "success", id ? "Course mise a jour." : "Course creee.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError(actionName, error, {
@@ -100,7 +104,10 @@ export async function saveCourseAction(formData: FormData) {
       formData: Object.fromEntries(formData.entries())
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible d'enregistrer la course.");
-    redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
+    redirectWithFeedback(PATH, "error", message, {
+      ...(id ? { edit: id } : {}),
+      ...(getListExtras(formData) ?? {})
+    });
   }
 }
 
@@ -121,7 +128,7 @@ export async function deleteCourseAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", "Course supprimee.");
+    redirectWithFeedback(PATH, "success", "Course supprimee.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("delete-course", error, {
@@ -129,6 +136,148 @@ export async function deleteCourseAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer la course.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function archiveCourseAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant course");
+  const archivedAt = new Date();
+
+  try {
+    const course = await prisma.race.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivedAt: true,
+        prediction: { select: { id: true, archivedAt: true } },
+        result: { select: { id: true, archivedAt: true } },
+        publicationJobs: { select: { id: true, archivedAt: true } }
+      }
+    });
+
+    if (!course) {
+      throw new Error("La course est introuvable.");
+    }
+
+    if (course.archivedAt) {
+      throw new Error("Cette course est deja archivee.");
+    }
+
+    await prisma.$transaction([
+      prisma.race.update({
+        where: { id },
+        data: {
+          archivedAt,
+          archivedById: user.id
+        }
+      }),
+      ...(course.prediction && !course.prediction.archivedAt
+        ? [
+            prisma.prediction.update({
+              where: { id: course.prediction.id },
+              data: {
+                archivedAt,
+                archivedById: user.id
+              }
+            })
+          ]
+        : []),
+      ...(course.result && !course.result.archivedAt
+        ? [
+            prisma.result.update({
+              where: { id: course.result.id },
+              data: {
+                archivedAt,
+                archivedById: user.id
+              }
+            })
+          ]
+        : []),
+      ...course.publicationJobs
+        .filter((job) => !job.archivedAt)
+        .map((job) =>
+          prisma.publicationJob.update({
+            where: { id: job.id },
+            data: {
+              archivedAt,
+              archivedById: user.id
+            }
+          })
+        )
+    ]);
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.RACE,
+      entityId: id,
+      metadataJson: {
+        operation: "archive"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Course archivee. Les fiches liees sensibles ont aussi ete archivees.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("archive-course", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible d'archiver la course.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function restoreCourseAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant course");
+
+  try {
+    const course = await prisma.race.findUnique({
+      where: { id },
+      select: { id: true, archivedAt: true }
+    });
+
+    if (!course) {
+      throw new Error("La course est introuvable.");
+    }
+
+    if (!course.archivedAt) {
+      throw new Error("Cette course n'est pas archivee.");
+    }
+
+    await prisma.race.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        archivedById: null
+      }
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.RACE,
+      entityId: id,
+      metadataJson: {
+        operation: "restore"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Course restauree.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("restore-course", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de restaurer la course.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }

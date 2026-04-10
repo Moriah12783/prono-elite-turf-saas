@@ -39,7 +39,7 @@ export async function saveRunnerAction(formData: FormData) {
     const status = parseEnumValue(formData.get("status"), "Le statut partant", RUNNER_STATUS_OPTIONS) as RunnerStatus;
     const rawData = parseOptionalString(formData.get("rawDataJson"), 1000);
 
-    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    const race = await prisma.race.findFirst({ where: { id: raceId, archivedAt: null }, select: { id: true } });
     if (!race) {
       throw new Error("La course selectionnee est introuvable.");
     }

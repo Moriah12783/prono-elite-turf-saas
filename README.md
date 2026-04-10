@@ -97,6 +97,14 @@ npm run dev
 - les garde-fous applicatifs restent en place pour fournir des messages metier explicites avant meme que la base ne refuse l'operation
 - `Prediction.approvedBy` et `AuditLog.actor` restent en `SET NULL` pour conserver l'historique si un utilisateur disparait
 
+## Strategie d'archivage MVP
+
+- les entites sensibles `races`, `predictions`, `results` et `publication_jobs` disposent d'un archivage reversible via `archived_at` et `archived_by`
+- les listes admin affichent par defaut uniquement les elements actifs
+- une vue archivee dediee permet de consulter puis restaurer les elements archives
+- l'archivage d'une course archive aussi les fiches sensibles liees pour garder des listes coherentes
+- les `runners` restent en suppression physique car ils sont des donnees de detail rattachees a une course et deja proteges par les garde-fous metier
+
 ## Migration Prisma supplementaire
 
 Si ta base locale a deja ete creee avec les anciennes relations en cascade, applique la migration suivante :
@@ -106,6 +114,12 @@ npm run db:migrate
 ```
 
 Cette migration remplace les `ON DELETE CASCADE` critiques par `ON DELETE RESTRICT` sans changer le modele fonctionnel du MVP.
+
+Une migration supplementaire ajoute aussi les champs d'archivage sur les entites sensibles :
+
+```bash
+npm run db:migrate
+```
 
 ## Evolutions prevues
 

@@ -14,6 +14,10 @@ import { assertRequiredString, parseEnumValue } from "@/lib/validation";
 
 const PATH = "/predictions";
 
+function getListExtras(formData: FormData) {
+  return formData.get("archivedView")?.toString() === "1" ? { archived: "1" } : undefined;
+}
+
 export async function savePredictionAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
@@ -39,7 +43,7 @@ export async function savePredictionAction(formData: FormData) {
       APPROVAL_STATUS_OPTIONS
     ) as ApprovalStatus;
 
-    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    const race = await prisma.race.findFirst({ where: { id: raceId, archivedAt: null }, select: { id: true } });
     if (!race) {
       throw new Error("La course selectionnee est introuvable.");
     }
@@ -99,7 +103,7 @@ export async function savePredictionAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", id ? "Pronostic mis a jour." : "Pronostic cree.");
+    redirectWithFeedback(PATH, "success", id ? "Pronostic mis a jour." : "Pronostic cree.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError(actionName, error, {
@@ -115,7 +119,10 @@ export async function savePredictionAction(formData: FormData) {
         ? error.message
         : "Impossible d'enregistrer le pronostic."
     );
-    redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
+    redirectWithFeedback(PATH, "error", message, {
+      ...(id ? { edit: id } : {}),
+      ...(getListExtras(formData) ?? {})
+    });
   }
 }
 
@@ -136,7 +143,7 @@ export async function deletePredictionAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", "Pronostic supprime.");
+    redirectWithFeedback(PATH, "success", "Pronostic supprime.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("delete-prediction", error, {
@@ -144,6 +151,118 @@ export async function deletePredictionAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer le pronostic.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function archivePredictionAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant pronostic");
+
+  try {
+    const prediction = await prisma.prediction.findUnique({
+      where: { id },
+      select: { id: true, archivedAt: true }
+    });
+
+    if (!prediction) {
+      throw new Error("Le pronostic est introuvable.");
+    }
+
+    if (prediction.archivedAt) {
+      throw new Error("Ce pronostic est deja archive.");
+    }
+
+    await prisma.prediction.update({
+      where: { id },
+      data: {
+        archivedAt: new Date(),
+        archivedById: user.id
+      }
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.PREDICTION,
+      entityId: id,
+      metadataJson: {
+        operation: "archive"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Pronostic archive.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("archive-prediction", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible d'archiver le pronostic.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function restorePredictionAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant pronostic");
+
+  try {
+    const prediction = await prisma.prediction.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivedAt: true,
+        race: {
+          select: {
+            archivedAt: true
+          }
+        }
+      }
+    });
+
+    if (!prediction) {
+      throw new Error("Le pronostic est introuvable.");
+    }
+
+    if (!prediction.archivedAt) {
+      throw new Error("Ce pronostic n'est pas archive.");
+    }
+
+    if (prediction.race.archivedAt) {
+      throw new Error("Restauration impossible : la course liee est archivee.");
+    }
+
+    await prisma.prediction.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        archivedById: null
+      }
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.PREDICTION,
+      entityId: id,
+      metadataJson: {
+        operation: "restore"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Pronostic restaure.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("restore-prediction", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de restaurer le pronostic.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }

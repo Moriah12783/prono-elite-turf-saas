@@ -46,7 +46,9 @@ export function getUserFacingActionErrorMessage(error: unknown, fallbackMessage:
       error.message.includes("introuvable") ||
       error.message.includes("Suppression impossible") ||
       error.message.includes("existe deja") ||
-      error.message.includes("possede deja")
+      error.message.includes("possede deja") ||
+      error.message.includes("archive") ||
+      error.message.includes("Restauration impossible")
     ) {
       return error.message;
     }

@@ -16,6 +16,10 @@ import { assertRequiredString, parseEnumValue, parseOptionalString } from "@/lib
 
 const PATH = "/publications";
 
+function getListExtras(formData: FormData) {
+  return formData.get("archivedView")?.toString() === "1" ? { archived: "1" } : undefined;
+}
+
 export async function savePublicationJobAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
@@ -36,7 +40,7 @@ export async function savePublicationJobAction(formData: FormData) {
     const payloadBody = assertRequiredString(formData.get("payloadBody"), "Le corps editorial", 4000);
     const payloadExcerpt = parseOptionalString(formData.get("payloadExcerpt"), 320);
 
-    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    const race = await prisma.race.findFirst({ where: { id: raceId, archivedAt: null }, select: { id: true } });
     if (!race) {
       throw new Error("La course selectionnee est introuvable.");
     }
@@ -92,7 +96,12 @@ export async function savePublicationJobAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", id ? "Publication mise a jour en brouillon." : "Publication creee en brouillon.");
+    redirectWithFeedback(
+      PATH,
+      "success",
+      id ? "Publication mise a jour en brouillon." : "Publication creee en brouillon.",
+      getListExtras(formData)
+    );
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError(actionName, error, {
@@ -106,7 +115,10 @@ export async function savePublicationJobAction(formData: FormData) {
         ? error.message
         : "Impossible d'enregistrer la publication."
     );
-    redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
+    redirectWithFeedback(PATH, "error", message, {
+      ...(id ? { edit: id } : {}),
+      ...(getListExtras(formData) ?? {})
+    });
   }
 }
 
@@ -118,11 +130,7 @@ export async function validatePublicationJobAction(formData: FormData) {
     const result = await refreshPublicationJobStatus(id, user.id);
 
     revalidatePath(PATH);
-    redirectWithFeedback(
-      PATH,
-      result.evaluation.isPublishable ? "success" : "error",
-      result.evaluation.isPublishable ? "Publication prete pour envoi." : result.evaluation.reasons.join(" ")
-    );
+    redirectWithFeedback(PATH, result.evaluation.isPublishable ? "success" : "error", result.evaluation.isPublishable ? "Publication prete pour envoi." : result.evaluation.reasons.join(" "), getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("validate-publication", error, {
@@ -130,7 +138,7 @@ export async function validatePublicationJobAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de controler la publication.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }
 
@@ -142,11 +150,7 @@ export async function publishPublicationJobAction(formData: FormData) {
     const result = await publishPublicationJob(id, user.id);
 
     revalidatePath(PATH);
-    redirectWithFeedback(
-      PATH,
-      result.success ? "success" : "error",
-      result.success ? "Publication mock effectuee." : result.errorMessage ?? "La publication a echoue."
-    );
+    redirectWithFeedback(PATH, result.success ? "success" : "error", result.success ? "Publication mock effectuee." : result.errorMessage ?? "La publication a echoue.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("publish-publication", error, {
@@ -154,7 +158,7 @@ export async function publishPublicationJobAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de publier ce contenu.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }
 
@@ -176,7 +180,7 @@ export async function deletePublicationJobAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", "Publication supprimee.");
+    redirectWithFeedback(PATH, "success", "Publication supprimee.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("delete-publication", error, {
@@ -184,6 +188,125 @@ export async function deletePublicationJobAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer la publication.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function archivePublicationJobAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant publication");
+
+  try {
+    const publication = await prisma.publicationJob.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivedAt: true,
+        raceId: true
+      }
+    });
+
+    if (!publication) {
+      throw new Error("La publication est introuvable.");
+    }
+
+    if (publication.archivedAt) {
+      throw new Error("Cette publication est deja archivee.");
+    }
+
+    await prisma.publicationJob.update({
+      where: { id },
+      data: {
+        archivedAt: new Date(),
+        archivedById: user.id
+      }
+    });
+    await syncRacePublicationStatus(publication.raceId);
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.PUBLICATION_JOB,
+      entityId: id,
+      metadataJson: {
+        operation: "archive"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Publication archivee.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("archive-publication", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible d'archiver la publication.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function restorePublicationJobAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant publication");
+
+  try {
+    const publication = await prisma.publicationJob.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivedAt: true,
+        raceId: true,
+        race: {
+          select: {
+            archivedAt: true
+          }
+        }
+      }
+    });
+
+    if (!publication) {
+      throw new Error("La publication est introuvable.");
+    }
+
+    if (!publication.archivedAt) {
+      throw new Error("Cette publication n'est pas archivee.");
+    }
+
+    if (publication.race.archivedAt) {
+      throw new Error("Restauration impossible : la course liee est archivee.");
+    }
+
+    await prisma.publicationJob.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        archivedById: null
+      }
+    });
+    await syncRacePublicationStatus(publication.raceId);
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.PUBLICATION_JOB,
+      entityId: id,
+      metadataJson: {
+        operation: "restore"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Publication restauree.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("restore-publication", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de restaurer la publication.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }

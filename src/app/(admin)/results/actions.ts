@@ -14,6 +14,10 @@ import { assertRequiredString, parseEnumValue, parseJsonArray } from "@/lib/vali
 
 const PATH = "/results";
 
+function getListExtras(formData: FormData) {
+  return formData.get("archivedView")?.toString() === "1" ? { archived: "1" } : undefined;
+}
+
 export async function saveResultAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
@@ -29,7 +33,7 @@ export async function saveResultAction(formData: FormData) {
       RESULT_STATUS_OPTIONS
     ) as ResultOfficialStatus;
 
-    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    const race = await prisma.race.findFirst({ where: { id: raceId, archivedAt: null }, select: { id: true } });
     if (!race) {
       throw new Error("La course selectionnee est introuvable.");
     }
@@ -77,7 +81,7 @@ export async function saveResultAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", id ? "Resultat mis a jour." : "Resultat cree.");
+    redirectWithFeedback(PATH, "success", id ? "Resultat mis a jour." : "Resultat cree.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError(actionName, error, {
@@ -93,7 +97,10 @@ export async function saveResultAction(formData: FormData) {
         ? error.message
         : "Impossible d'enregistrer le resultat."
     );
-    redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
+    redirectWithFeedback(PATH, "error", message, {
+      ...(id ? { edit: id } : {}),
+      ...(getListExtras(formData) ?? {})
+    });
   }
 }
 
@@ -114,7 +121,7 @@ export async function deleteResultAction(formData: FormData) {
     });
 
     revalidatePath(PATH);
-    redirectWithFeedback(PATH, "success", "Resultat supprime.");
+    redirectWithFeedback(PATH, "success", "Resultat supprime.", getListExtras(formData));
   } catch (error) {
     rethrowIfRedirectError(error);
     logServerActionError("delete-result", error, {
@@ -122,6 +129,118 @@ export async function deleteResultAction(formData: FormData) {
       id
     });
     const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer le resultat.");
-    redirectWithFeedback(PATH, "error", message);
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function archiveResultAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant resultat");
+
+  try {
+    const result = await prisma.result.findUnique({
+      where: { id },
+      select: { id: true, archivedAt: true }
+    });
+
+    if (!result) {
+      throw new Error("Le resultat est introuvable.");
+    }
+
+    if (result.archivedAt) {
+      throw new Error("Ce resultat est deja archive.");
+    }
+
+    await prisma.result.update({
+      where: { id },
+      data: {
+        archivedAt: new Date(),
+        archivedById: user.id
+      }
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.RESULT,
+      entityId: id,
+      metadataJson: {
+        operation: "archive"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Resultat archive.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("archive-result", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible d'archiver le resultat.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
+  }
+}
+
+export async function restoreResultAction(formData: FormData) {
+  const user = await requireAdmin();
+  const prisma = getPrisma();
+  const id = assertRequiredString(formData.get("id"), "L'identifiant resultat");
+
+  try {
+    const result = await prisma.result.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        archivedAt: true,
+        race: {
+          select: {
+            archivedAt: true
+          }
+        }
+      }
+    });
+
+    if (!result) {
+      throw new Error("Le resultat est introuvable.");
+    }
+
+    if (!result.archivedAt) {
+      throw new Error("Ce resultat n'est pas archive.");
+    }
+
+    if (result.race.archivedAt) {
+      throw new Error("Restauration impossible : la course liee est archivee.");
+    }
+
+    await prisma.result.update({
+      where: { id },
+      data: {
+        archivedAt: null,
+        archivedById: null
+      }
+    });
+
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.UPDATE,
+      entityType: AuditEntityType.RESULT,
+      entityId: id,
+      metadataJson: {
+        operation: "restore"
+      }
+    });
+
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Resultat restaure.", getListExtras(formData));
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("restore-result", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de restaurer le resultat.");
+    redirectWithFeedback(PATH, "error", message, getListExtras(formData));
   }
 }

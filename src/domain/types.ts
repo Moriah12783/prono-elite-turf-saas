@@ -13,6 +13,10 @@ export type AdminRaceRecord = {
   status: RaceStatus;
   qualityScore: number | null;
   publicationStatus: PublicationStatus;
+  archivedAt: Date | null;
+  archivedBy: {
+    name: string;
+  } | null;
   prediction: {
     id: string;
     approvalStatus: ApprovalStatus;
@@ -85,7 +89,11 @@ export type AdminPredictionRecord = {
   cautionText: string;
   approvalStatus: ApprovalStatus;
   generatedAt: Date;
+  archivedAt: Date | null;
   approvedBy: {
+    name: string;
+  } | null;
+  archivedBy: {
     name: string;
   } | null;
   race: {
@@ -101,6 +109,10 @@ export type AdminResultRecord = {
   officialArrival: string[];
   officialStatus: ResultOfficialStatus;
   importedAt: Date | null;
+  archivedAt: Date | null;
+  archivedBy: {
+    name: string;
+  } | null;
   race: {
     raceName: string;
     venue: string;

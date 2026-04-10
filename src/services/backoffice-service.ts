@@ -1,17 +1,26 @@
-﻿import { getPrisma } from "@/lib/prisma";
+import { getPrisma } from "@/lib/prisma";
+
+type ArchiveFilterOptions = {
+  archived?: boolean;
+};
+
+function getArchiveWhere(options?: ArchiveFilterOptions) {
+  return options?.archived ? { NOT: { archivedAt: null } } : { archivedAt: null };
+}
 
 export async function getDashboardMetrics() {
   const prisma = getPrisma();
+  const activeWhere = { archivedAt: null };
 
   const [totalRaces, pendingRaces, generatedPredictions, readyPublications, publishedPublications, anomalies] = await Promise.all([
-    prisma.race.count(),
-    prisma.race.count({ where: { status: { in: ["COLLECTED", "PENDING_VALIDATION"] } } }),
-    prisma.prediction.count(),
-    prisma.publicationJob.count({ where: { status: "READY" } }),
-    prisma.publicationJob.count({ where: { status: "PUBLISHED" } }),
+    prisma.race.count({ where: activeWhere }),
+    prisma.race.count({ where: { ...activeWhere, status: { in: ["COLLECTED", "PENDING_VALIDATION"] } } }),
+    prisma.prediction.count({ where: activeWhere }),
+    prisma.publicationJob.count({ where: { ...activeWhere, status: "READY" } }),
+    prisma.publicationJob.count({ where: { ...activeWhere, status: "PUBLISHED" } }),
     Promise.all([
-      prisma.publicationJob.count({ where: { status: { in: ["FAILED", "BLOCKED"] } } }),
-      prisma.prediction.count({ where: { approvalStatus: "REJECTED" } })
+      prisma.publicationJob.count({ where: { ...activeWhere, status: { in: ["FAILED", "BLOCKED"] } } }),
+      prisma.prediction.count({ where: { ...activeWhere, approvalStatus: "REJECTED" } })
     ]).then(([badPublicationJobs, rejectedPredictions]) => badPublicationJobs + rejectedPredictions)
   ]);
 
@@ -25,10 +34,14 @@ export async function getDashboardMetrics() {
   ];
 }
 
-export async function getRaces() {
+export async function getRaces(options?: ArchiveFilterOptions) {
   const prisma = getPrisma();
   return prisma.race.findMany({
+    where: getArchiveWhere(options),
     include: {
+      archivedBy: {
+        select: { name: true }
+      },
       prediction: {
         select: { id: true, approvalStatus: true }
       },
@@ -42,12 +55,20 @@ export async function getRaces() {
 
 export async function getRaceById(id: string) {
   const prisma = getPrisma();
-  return prisma.race.findUnique({ where: { id } });
+  return prisma.race.findUnique({
+    where: { id },
+    include: {
+      archivedBy: {
+        select: { name: true }
+      }
+    }
+  });
 }
 
 export async function getRacesForSelect() {
   const prisma = getPrisma();
   return prisma.race.findMany({
+    where: { archivedAt: null },
     select: {
       id: true,
       raceName: true,
@@ -68,6 +89,11 @@ export async function getRacesForSelect() {
 export async function getRunners() {
   const prisma = getPrisma();
   return prisma.runner.findMany({
+    where: {
+      race: {
+        archivedAt: null
+      }
+    },
     include: {
       race: {
         select: {
@@ -87,11 +113,22 @@ export async function getRunnerById(id: string) {
   return prisma.runner.findUnique({ where: { id } });
 }
 
-export async function getPredictions() {
+export async function getPredictions(options?: ArchiveFilterOptions) {
   const prisma = getPrisma();
   return prisma.prediction.findMany({
+    where: options?.archived
+      ? { NOT: { archivedAt: null } }
+      : {
+          archivedAt: null,
+          race: {
+            archivedAt: null
+          }
+        },
     include: {
       approvedBy: {
+        select: { name: true }
+      },
+      archivedBy: {
         select: { name: true }
       },
       race: {
@@ -109,13 +146,31 @@ export async function getPredictions() {
 
 export async function getPredictionById(id: string) {
   const prisma = getPrisma();
-  return prisma.prediction.findUnique({ where: { id } });
+  return prisma.prediction.findUnique({
+    where: { id },
+    include: {
+      archivedBy: {
+        select: { name: true }
+      }
+    }
+  });
 }
 
-export async function getResults() {
+export async function getResults(options?: ArchiveFilterOptions) {
   const prisma = getPrisma();
   return prisma.result.findMany({
+    where: options?.archived
+      ? { NOT: { archivedAt: null } }
+      : {
+          archivedAt: null,
+          race: {
+            archivedAt: null
+          }
+        },
     include: {
+      archivedBy: {
+        select: { name: true }
+      },
       race: {
         select: {
           raceName: true,
@@ -139,13 +194,31 @@ export async function getResults() {
 
 export async function getResultById(id: string) {
   const prisma = getPrisma();
-  return prisma.result.findUnique({ where: { id } });
+  return prisma.result.findUnique({
+    where: { id },
+    include: {
+      archivedBy: {
+        select: { name: true }
+      }
+    }
+  });
 }
 
-export async function getPublicationRows() {
+export async function getPublicationRows(options?: ArchiveFilterOptions) {
   const prisma = getPrisma();
   return prisma.publicationJob.findMany({
+    where: options?.archived
+      ? { NOT: { archivedAt: null } }
+      : {
+          archivedAt: null,
+          race: {
+            archivedAt: null
+          }
+        },
     include: {
+      archivedBy: {
+        select: { name: true }
+      },
       race: {
         select: {
           id: true,
@@ -168,7 +241,14 @@ export async function getPublicationRows() {
 
 export async function getPublicationById(id: string) {
   const prisma = getPrisma();
-  return prisma.publicationJob.findUnique({ where: { id } });
+  return prisma.publicationJob.findUnique({
+    where: { id },
+    include: {
+      archivedBy: {
+        select: { name: true }
+      }
+    }
+  });
 }
 
 export async function getAuditLogs() {

@@ -9,11 +9,11 @@ import { Select } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
 import { PUBLICATION_STATUS_OPTIONS, RACE_STATUS_OPTIONS } from "@/domain/options";
-import { formatDate, formatStatusLabel } from "@/lib/format";
+import { formatDate, formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
 import { getRaceById, getRaces } from "@/services/backoffice-service";
 
-import { deleteCourseAction, saveCourseAction } from "./actions";
+import { archiveCourseAction, restoreCourseAction, saveCourseAction } from "./actions";
 
 export default async function CoursesPage({
   searchParams
@@ -23,9 +23,14 @@ export default async function CoursesPage({
   const params = await searchParams;
   const editId = asStringValue(params.edit);
   const message = asStringValue(params.message);
+  const showArchived = asStringValue(params.archived) === "1";
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
+  const listHref = showArchived ? "/courses?archived=1" : "/courses";
 
-  const [races, editingRace] = await Promise.all([getRaces(), editId ? getRaceById(editId) : Promise.resolve(null)]);
+  const [races, editingRace] = await Promise.all([
+    getRaces({ archived: showArchived }),
+    editId ? getRaceById(editId) : Promise.resolve(null)
+  ]);
 
   return (
     <div className="space-y-6">
@@ -35,12 +40,29 @@ export default async function CoursesPage({
         description="CRUD admin des courses avec statuts metier, qualite de donnees et readiness publication conformes au cahier des charges."
       />
 
+      <div className="flex justify-end">
+        <LinkButton href={showArchived ? "/courses" : "/courses?archived=1"}>
+          {showArchived ? "Voir les courses actives" : "Voir les archives"}
+        </LinkButton>
+      </div>
+
       {message ? <Notice tone={tone} message={message} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr,1.35fr]">
-        <Panel title={editingRace ? "Modifier une course" : "Nouvelle course"} description="Saisie minimale necessaire avant generation de pronostic et publication.">
+        <Panel
+          title={showArchived && !editingRace ? "Mode archive" : editingRace ? "Modifier une course" : "Nouvelle course"}
+          description={
+            showArchived && !editingRace
+              ? "La creation est desactivee dans la vue archive. Restaurez une course ou revenez a la vue active pour creer."
+              : "Saisie minimale necessaire avant generation de pronostic et publication."
+          }
+        >
+          {showArchived && !editingRace ? (
+            <p className="text-sm text-slate-500">Les courses archivees restent consultables et restaurables depuis cette vue.</p>
+          ) : (
           <form action={saveCourseAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingRace?.id ?? ""} />
+            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
             <Field label="Nom de la course">
               <Input name="raceName" defaultValue={editingRace?.raceName ?? ""} required />
             </Field>
@@ -81,12 +103,16 @@ export default async function CoursesPage({
             </Field>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
               <Button type="submit">{editingRace ? "Mettre a jour" : "Creer la course"}</Button>
-              {editingRace ? <LinkButton href="/courses">Annuler</LinkButton> : null}
+              {editingRace ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
             </div>
           </form>
+          )}
         </Panel>
 
-        <Panel title="Liste des courses" description="Vue de gestion principale pour la production quotidienne.">
+        <Panel
+          title={showArchived ? "Courses archivees" : "Liste des courses"}
+          description={showArchived ? "Historique archive des courses sensibles." : "Vue de gestion principale pour la production quotidienne."}
+        >
           <SimpleTable
             rows={races}
             columns={[
@@ -112,6 +138,12 @@ export default async function CoursesPage({
                   <div className="space-y-2">
                     <StatusBadge status={race.status} />
                     <div><StatusBadge status={race.publicationStatus} /></div>
+                    {race.archivedAt ? (
+                      <p className="text-xs text-slate-500">
+                        Archivee le {formatDateTime(race.archivedAt)}
+                        {race.archivedBy ? ` par ${race.archivedBy.name}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 )
               },
@@ -120,10 +152,13 @@ export default async function CoursesPage({
                 header: "Actions",
                 render: (race) => (
                   <div className="flex flex-wrap gap-2">
-                    <LinkButton href={`/courses?edit=${race.id}`}>Editer</LinkButton>
-                    <form action={deleteCourseAction}>
+                    {!showArchived ? <LinkButton href={`/courses?edit=${race.id}`}>Editer</LinkButton> : null}
+                    <form action={showArchived ? restoreCourseAction : archiveCourseAction}>
                       <input type="hidden" name="id" value={race.id} />
-                      <Button type="submit" variant="danger">Supprimer</Button>
+                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
+                        {showArchived ? "Restaurer" : "Archiver"}
+                      </Button>
                     </form>
                   </div>
                 )

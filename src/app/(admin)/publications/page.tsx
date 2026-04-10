@@ -16,8 +16,9 @@ import { asStringValue } from "@/lib/validation";
 import { getPublicationById, getPublicationRows, getRacesForSelect } from "@/services/backoffice-service";
 
 import {
-  deletePublicationJobAction,
+  archivePublicationJobAction,
   publishPublicationJobAction,
+  restorePublicationJobAction,
   savePublicationJobAction,
   validatePublicationJobAction
 } from "./actions";
@@ -30,10 +31,12 @@ export default async function PublicationsPage({
   const params = await searchParams;
   const editId = asStringValue(params.edit);
   const message = asStringValue(params.message);
+  const showArchived = asStringValue(params.archived) === "1";
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
+  const listHref = showArchived ? "/publications?archived=1" : "/publications";
 
   const [rows, races, editingPublication] = await Promise.all([
-    getPublicationRows(),
+    getPublicationRows({ archived: showArchived }),
     getRacesForSelect(),
     editId ? getPublicationById(editId) : Promise.resolve(null)
   ]);
@@ -48,12 +51,29 @@ export default async function PublicationsPage({
         description="CRUD admin, controles bloquants et publication mock decouplee pour preparer les futures integrations externes."
       />
 
+      <div className="flex justify-end">
+        <LinkButton href={showArchived ? "/publications" : "/publications?archived=1"}>
+          {showArchived ? "Voir les publications actives" : "Voir les archives"}
+        </LinkButton>
+      </div>
+
       {message ? <Notice tone={tone} message={message} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr,1.35fr]">
-        <Panel title={editingPublication ? "Modifier une publication" : "Nouvelle publication"} description="La publication est d'abord en brouillon, puis controlee avant toute tentative d'envoi.">
+        <Panel
+          title={showArchived && !editingPublication ? "Mode archive" : editingPublication ? "Modifier une publication" : "Nouvelle publication"}
+          description={
+            showArchived && !editingPublication
+              ? "La creation est desactivee dans la vue archive. Restaurez une publication ou revenez a la vue active."
+              : "La publication est d'abord en brouillon, puis controlee avant toute tentative d'envoi."
+          }
+        >
+          {showArchived && !editingPublication ? (
+            <p className="text-sm text-slate-500">Les publication jobs archives restent consultables et restaurables depuis cette vue.</p>
+          ) : (
           <form action={savePublicationJobAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingPublication?.id ?? ""} />
+            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
             <Field label="Course">
               <Select name="raceId" defaultValue={editingPublication?.raceId ?? races[0]?.id ?? ""} required>
                 {races.map((race) => (
@@ -93,12 +113,16 @@ export default async function PublicationsPage({
             </div>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
               <Button type="submit" disabled={!races.length}>{editingPublication ? "Mettre a jour" : "Creer la publication"}</Button>
-              {editingPublication ? <LinkButton href="/publications">Annuler</LinkButton> : null}
+              {editingPublication ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
             </div>
           </form>
+          )}
         </Panel>
 
-        <Panel title="Suivi des publications" description="Controle metier, statut workflow, erreurs de publication et payload editorial.">
+        <Panel
+          title={showArchived ? "Publications archivees" : "Suivi des publications"}
+          description={showArchived ? "Historique archive des jobs de publication." : "Controle metier, statut workflow, erreurs de publication et payload editorial."}
+        >
           <SimpleTable
             rows={rows}
             columns={[
@@ -142,6 +166,12 @@ export default async function PublicationsPage({
                   <div className="space-y-2">
                     <StatusBadge status={row.status} />
                     <p className="text-xs text-slate-500">{row.publishedAt ? formatDateTime(row.publishedAt) : "Non publie"}</p>
+                    {row.archivedAt ? (
+                      <p className="text-xs text-slate-500">
+                        Archivee le {formatDateTime(row.archivedAt)}
+                        {row.archivedBy ? ` par ${row.archivedBy.name}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 )
               },
@@ -155,18 +185,25 @@ export default async function PublicationsPage({
                 header: "Actions",
                 render: (row) => (
                   <div className="flex flex-wrap gap-2">
-                    <LinkButton href={`/publications?edit=${row.id}`}>Editer</LinkButton>
-                    <form action={validatePublicationJobAction}>
+                    {!showArchived ? <LinkButton href={`/publications?edit=${row.id}`}>Editer</LinkButton> : null}
+                    {!showArchived ? (
+                      <form action={validatePublicationJobAction}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <Button type="submit" variant="secondary">Controler</Button>
+                      </form>
+                    ) : null}
+                    {!showArchived ? (
+                      <form action={publishPublicationJobAction}>
+                        <input type="hidden" name="id" value={row.id} />
+                        <Button type="submit">Publier</Button>
+                      </form>
+                    ) : null}
+                    <form action={showArchived ? restorePublicationJobAction : archivePublicationJobAction}>
                       <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit" variant="secondary">Controler</Button>
-                    </form>
-                    <form action={publishPublicationJobAction}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit">Publier</Button>
-                    </form>
-                    <form action={deletePublicationJobAction}>
-                      <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit" variant="danger">Supprimer</Button>
+                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
+                        {showArchived ? "Restaurer" : "Archiver"}
+                      </Button>
                     </form>
                   </div>
                 )

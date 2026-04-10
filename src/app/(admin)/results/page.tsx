@@ -13,7 +13,7 @@ import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
 import { getResultById, getResults, getRacesForSelect } from "@/services/backoffice-service";
 
-import { deleteResultAction, saveResultAction } from "./actions";
+import { archiveResultAction, restoreResultAction, saveResultAction } from "./actions";
 
 export default async function ResultsPage({
   searchParams
@@ -23,10 +23,12 @@ export default async function ResultsPage({
   const params = await searchParams;
   const editId = asStringValue(params.edit);
   const message = asStringValue(params.message);
+  const showArchived = asStringValue(params.archived) === "1";
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
+  const listHref = showArchived ? "/results?archived=1" : "/results";
 
   const [rows, races, editingResult] = await Promise.all([
-    getResults(),
+    getResults({ archived: showArchived }),
     getRacesForSelect(),
     editId ? getResultById(editId) : Promise.resolve(null)
   ]);
@@ -42,12 +44,29 @@ export default async function ResultsPage({
         description="CRUD admin des arrivees officielles avec comparaison directe face aux pronostics generes."
       />
 
+      <div className="flex justify-end">
+        <LinkButton href={showArchived ? "/results" : "/results?archived=1"}>
+          {showArchived ? "Voir les resultats actifs" : "Voir les archives"}
+        </LinkButton>
+      </div>
+
       {message ? <Notice tone={tone} message={message} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr,1.35fr]">
-        <Panel title={editingResult ? "Modifier un resultat" : "Nouveau resultat"} description="L'arrivee officielle est saisie sous forme de numeros separes par des virgules.">
+        <Panel
+          title={showArchived && !editingResult ? "Mode archive" : editingResult ? "Modifier un resultat" : "Nouveau resultat"}
+          description={
+            showArchived && !editingResult
+              ? "La creation est desactivee dans la vue archive. Restaurez un resultat ou revenez a la vue active."
+              : "L'arrivee officielle est saisie sous forme de numeros separes par des virgules."
+          }
+        >
+          {showArchived && !editingResult ? (
+            <p className="text-sm text-slate-500">Les resultats archives restent consultables et restaurables depuis cette vue.</p>
+          ) : (
           <form action={saveResultAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingResult?.id ?? ""} />
+            <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
             <Field label="Course">
               <Select name="raceId" defaultValue={editingResult?.raceId ?? selectableRaces[0]?.id ?? ""} required>
                 {selectableRaces.map((race) => (
@@ -69,17 +88,21 @@ export default async function ResultsPage({
             </div>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
               <Button type="submit" disabled={!selectableRaces.length && !editingResult}>{editingResult ? "Mettre a jour" : "Creer le resultat"}</Button>
-              {editingResult ? <LinkButton href="/results">Annuler</LinkButton> : null}
+              {editingResult ? <LinkButton href={listHref}>Annuler</LinkButton> : null}
             </div>
           </form>
-          {!editingResult && !selectableRaces.length ? (
+          )}
+          {!showArchived && !editingResult && !selectableRaces.length ? (
             <p className="mt-4 text-sm text-slate-500">
               Toutes les courses ont deja un resultat. Editez une fiche existante ou ajoutez une nouvelle course.
             </p>
           ) : null}
         </Panel>
 
-        <Panel title="Liste des resultats" description="Suivi des arrivees et lecture rapide de l'ecart entre analyse et reel.">
+        <Panel
+          title={showArchived ? "Resultats archives" : "Liste des resultats"}
+          description={showArchived ? "Historique archive des resultats saisis." : "Suivi des arrivees et lecture rapide de l'ecart entre analyse et reel."}
+        >
           <SimpleTable
             rows={rows}
             columns={[
@@ -113,6 +136,12 @@ export default async function ResultsPage({
                   <div className="space-y-2">
                     <StatusBadge status={row.officialStatus} />
                     <p className="text-xs text-slate-500">{row.importedAt ? formatDateTime(row.importedAt) : "Non importe"}</p>
+                    {row.archivedAt ? (
+                      <p className="text-xs text-slate-500">
+                        Archive le {formatDateTime(row.archivedAt)}
+                        {row.archivedBy ? ` par ${row.archivedBy.name}` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 )
               },
@@ -121,10 +150,13 @@ export default async function ResultsPage({
                 header: "Actions",
                 render: (row) => (
                   <div className="flex flex-wrap gap-2">
-                    <LinkButton href={`/results?edit=${row.id}`}>Editer</LinkButton>
-                    <form action={deleteResultAction}>
+                    {!showArchived ? <LinkButton href={`/results?edit=${row.id}`}>Editer</LinkButton> : null}
+                    <form action={showArchived ? restoreResultAction : archiveResultAction}>
                       <input type="hidden" name="id" value={row.id} />
-                      <Button type="submit" variant="danger">Supprimer</Button>
+                      <input type="hidden" name="archivedView" value={showArchived ? "1" : "0"} />
+                      <Button type="submit" variant={showArchived ? "secondary" : "danger"}>
+                        {showArchived ? "Restaurer" : "Archiver"}
+                      </Button>
                     </form>
                   </div>
                 )
