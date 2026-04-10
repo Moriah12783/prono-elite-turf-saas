@@ -90,6 +90,23 @@ npm run dev
 - tentative de publication mock via une couche de service decouplee
 - retour en `PUBLISHED` ou `FAILED`
 
+## Strategie de relations et suppressions
+
+- les relations critiques vers `races` sont protegees en base par `ON DELETE RESTRICT`
+- une course ne peut donc pas etre supprimee si des `runners`, `predictions`, `results` ou `publication_jobs` existent encore
+- les garde-fous applicatifs restent en place pour fournir des messages metier explicites avant meme que la base ne refuse l'operation
+- `Prediction.approvedBy` et `AuditLog.actor` restent en `SET NULL` pour conserver l'historique si un utilisateur disparait
+
+## Migration Prisma supplementaire
+
+Si ta base locale a deja ete creee avec les anciennes relations en cascade, applique la migration suivante :
+
+```bash
+npm run db:migrate
+```
+
+Cette migration remplace les `ON DELETE CASCADE` critiques par `ON DELETE RESTRICT` sans changer le modele fonctionnel du MVP.
+
 ## Evolutions prevues
 
 - branchement de vraies sources hippiques

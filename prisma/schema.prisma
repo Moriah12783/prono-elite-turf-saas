@@ -141,7 +141,7 @@ model Runner {
   rawDataJson Json?        @map("raw_data_json")
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
-  race        Race         @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  race        Race         @relation(fields: [raceId], references: [id], onDelete: Restrict)
 
   @@unique([raceId, number])
   @@index([raceId, status])
@@ -163,7 +163,7 @@ model Prediction {
   approvedById    String?         @map("approved_by")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
-  race            Race            @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  race            Race            @relation(fields: [raceId], references: [id], onDelete: Restrict)
   approvedBy      User?           @relation("PredictionApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([approvalStatus])
@@ -178,7 +178,7 @@ model Result {
   importedAt      DateTime?            @map("imported_at")
   createdAt       DateTime             @default(now()) @map("created_at")
   updatedAt       DateTime             @updatedAt @map("updated_at")
-  race            Race                 @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  race            Race                 @relation(fields: [raceId], references: [id], onDelete: Restrict)
 
   @@index([officialStatus])
   @@map("results")
@@ -195,7 +195,7 @@ model PublicationJob {
   errorMessage String?           @map("error_message")
   createdAt    DateTime          @default(now()) @map("created_at")
   updatedAt    DateTime          @updatedAt @map("updated_at")
-  race         Race              @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  race         Race              @relation(fields: [raceId], references: [id], onDelete: Restrict)
 
   @@index([raceId, status])
   @@map("publication_jobs")
