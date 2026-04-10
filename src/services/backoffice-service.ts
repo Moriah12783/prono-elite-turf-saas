@@ -270,6 +270,16 @@ export async function getPublicationById(id: string) {
     include: {
       archivedBy: {
         select: { name: true }
+      },
+      race: {
+        select: {
+          id: true,
+          archivedAt: true,
+          raceName: true,
+          venue: true,
+          raceTime: true,
+          status: true
+        }
       }
     }
   });

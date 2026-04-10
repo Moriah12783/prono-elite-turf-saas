@@ -52,7 +52,8 @@ export class WordPressPublicationProvider {
         status: PublicationStatus.FAILED,
         errorMessage: `Configuration WordPress incomplete : ${config.missingFields.join(", ")}.`,
         providerKey: "wordpress-rest",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        responsePayload: null
       };
     }
 
@@ -86,7 +87,9 @@ export class WordPressPublicationProvider {
           status: PublicationStatus.FAILED,
           errorMessage: getResponseErrorMessage(responseBody, response.status),
           providerKey: "wordpress-rest",
-          deliveryMode: "real"
+          deliveryMode: "real",
+          requestPayload: requestBody,
+          responsePayload: responseBody
         };
       }
 
@@ -96,7 +99,9 @@ export class WordPressPublicationProvider {
           status: PublicationStatus.FAILED,
           errorMessage: "WordPress n'a pas retourne d'identifiant de post.",
           providerKey: "wordpress-rest",
-          deliveryMode: "real"
+          deliveryMode: "real",
+          requestPayload: requestBody,
+          responsePayload: responseBody
         };
       }
 
@@ -106,7 +111,9 @@ export class WordPressPublicationProvider {
         publishedAt: new Date(),
         externalReference: responseBody.link ?? `wordpress:${responseBody.id}`,
         providerKey: "wordpress-rest",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        requestPayload: requestBody,
+        responsePayload: responseBody
       };
     } catch (error) {
       return {
@@ -114,7 +121,9 @@ export class WordPressPublicationProvider {
         status: PublicationStatus.FAILED,
         errorMessage: error instanceof Error ? `Erreur reseau WordPress : ${error.message}` : "Erreur reseau inconnue vers WordPress.",
         providerKey: "wordpress-rest",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        requestPayload: requestBody,
+        responsePayload: null
       };
     }
   }

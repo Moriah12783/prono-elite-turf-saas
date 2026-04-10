@@ -84,7 +84,8 @@ export class ApiCustomPublicationProvider {
         status: PublicationStatus.FAILED,
         errorMessage: `Configuration api-custom incomplete : ${config.missingFields.join(", ")}.`,
         providerKey: "api-custom",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        responsePayload: null
       };
     }
 
@@ -117,7 +118,9 @@ export class ApiCustomPublicationProvider {
           status: PublicationStatus.FAILED,
           errorMessage: getApiCustomErrorMessage(responseBody, response.status),
           providerKey: "api-custom",
-          deliveryMode: "real"
+          deliveryMode: "real",
+          requestPayload: requestBody,
+          responsePayload: responseBody
         };
       }
 
@@ -132,7 +135,9 @@ export class ApiCustomPublicationProvider {
           status: PublicationStatus.FAILED,
           errorMessage: "API Elite Turf n'a pas retourne de reference de publication.",
           providerKey: "api-custom",
-          deliveryMode: "real"
+          deliveryMode: "real",
+          requestPayload: requestBody,
+          responsePayload: responseBody
         };
       }
 
@@ -142,7 +147,9 @@ export class ApiCustomPublicationProvider {
         publishedAt: new Date(),
         externalReference,
         providerKey: "api-custom",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        requestPayload: requestBody,
+        responsePayload: responseBody
       };
     } catch (error) {
       return {
@@ -150,7 +157,9 @@ export class ApiCustomPublicationProvider {
         status: PublicationStatus.FAILED,
         errorMessage: error instanceof Error ? `Erreur reseau API custom : ${error.message}` : "Erreur reseau inconnue vers API custom.",
         providerKey: "api-custom",
-        deliveryMode: "real"
+        deliveryMode: "real",
+        requestPayload: requestBody,
+        responsePayload: null
       };
     }
   }

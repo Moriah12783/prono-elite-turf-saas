@@ -15,6 +15,13 @@ export interface PublicationProvider {
 class MockPublicationProvider implements PublicationProvider {
   async publish(input: PublicationProviderInput): Promise<PublicationExecutionResult> {
     const normalizedTarget = normalizePublicationTarget(input.target);
+    const requestPayload = {
+      publicationJobId: input.publicationJobId,
+      target: normalizedTarget ?? input.target,
+      mode: input.mode,
+      race: input.race,
+      payload: input.payload
+    };
 
     if (!normalizedTarget) {
       return {
@@ -23,7 +30,9 @@ class MockPublicationProvider implements PublicationProvider {
         errorMessage: "Aucun adaptateur mock n'est disponible pour cette cible.",
         externalReference: undefined,
         providerKey: "mock",
-        deliveryMode: "mock"
+        deliveryMode: "mock",
+        requestPayload,
+        responsePayload: null
       };
     }
 
@@ -33,7 +42,13 @@ class MockPublicationProvider implements PublicationProvider {
       publishedAt: new Date(),
       externalReference: `mock-${input.publicationJobId}`,
       providerKey: "mock",
-      deliveryMode: "mock"
+      deliveryMode: "mock",
+      requestPayload,
+      responsePayload: {
+        success: true,
+        externalReference: `mock-${input.publicationJobId}`,
+        providerKey: "mock"
+      }
     };
   }
 }

@@ -232,6 +232,36 @@ API_CUSTOM_ENDPOINT="/api/test/elite-turf/publications?mode=success"
 API_CUSTOM_DEFAULT_STATUS="draft"
 ```
 
+## Vue debug publication
+
+- chaque ligne de `Publications` propose une action `Debug`
+- la fiche de debug affiche :
+  - le provider cible
+  - le mode effectif
+  - le statut du job
+  - le payload envoye
+  - la reponse recue
+  - la reference externe
+  - le message d'erreur
+  - les horodatages utiles
+- cette vue fonctionne pour `mock`, `wordpress-rest` et `api-custom`
+- aucun secret de configuration n'y est affiche :
+  - pas de token Bearer
+  - pas de mot de passe applicatif WordPress
+  - pas d'en-tetes d'authentification
+
+### Tester le debug localement
+
+1. creer ou editer un `publication_job`
+2. lancer `Controler`
+3. lancer `Publier`
+4. cliquer sur `Debug`
+5. verifier dans la fiche :
+   - le payload envoye au provider
+   - la reponse retournee par le provider
+   - le mode effectif `mock`, `real` ou `prepared`
+   - l'eventuelle erreur de publication
+
 ## Strategie de relations et suppressions
 
 - les relations critiques vers `races` sont protegees en base par `ON DELETE RESTRICT`

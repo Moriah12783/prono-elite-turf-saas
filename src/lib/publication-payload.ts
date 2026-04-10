@@ -43,3 +43,62 @@ export function parsePublicationDeliveryMeta(value: unknown): {
     externalReference
   };
 }
+
+export function parsePublicationDebugMeta(value: unknown): {
+  lastAttemptAt?: string;
+  sentPayload?: unknown;
+  receivedResponse?: unknown;
+} | null {
+  if (!isRecord(value) || !isRecord(value.debug)) {
+    return null;
+  }
+
+  const debug = value.debug;
+  const lastAttemptAt = typeof debug.lastAttemptAt === "string" ? debug.lastAttemptAt : undefined;
+  const sentPayload = "sentPayload" in debug ? debug.sentPayload : undefined;
+  const receivedResponse = "receivedResponse" in debug ? debug.receivedResponse : undefined;
+
+  if (!lastAttemptAt && sentPayload === undefined && receivedResponse === undefined) {
+    return null;
+  }
+
+  return {
+    lastAttemptAt,
+    sentPayload,
+    receivedResponse
+  };
+}
+
+export type PublicationAttemptHistoryEntry = {
+  attemptedAt?: string;
+  providerKey?: string;
+  target?: string;
+  deliveryMode?: string;
+  status?: string;
+  externalReference?: string;
+  errorMessage?: string;
+  sentPayload?: unknown;
+  receivedResponse?: unknown;
+  publishedAt?: string;
+};
+
+export function parsePublicationAttemptHistory(value: unknown): PublicationAttemptHistoryEntry[] {
+  if (!isRecord(value) || !Array.isArray(value.debugHistory)) {
+    return [];
+  }
+
+  return value.debugHistory
+    .filter(isRecord)
+    .map((entry) => ({
+      attemptedAt: typeof entry.attemptedAt === "string" ? entry.attemptedAt : undefined,
+      providerKey: typeof entry.providerKey === "string" ? entry.providerKey : undefined,
+      target: typeof entry.target === "string" ? entry.target : undefined,
+      deliveryMode: typeof entry.deliveryMode === "string" ? entry.deliveryMode : undefined,
+      status: typeof entry.status === "string" ? entry.status : undefined,
+      externalReference: typeof entry.externalReference === "string" ? entry.externalReference : undefined,
+      errorMessage: typeof entry.errorMessage === "string" ? entry.errorMessage : undefined,
+      sentPayload: "sentPayload" in entry ? entry.sentPayload : undefined,
+      receivedResponse: "receivedResponse" in entry ? entry.receivedResponse : undefined,
+      publishedAt: typeof entry.publishedAt === "string" ? entry.publishedAt : undefined
+    }));
+}

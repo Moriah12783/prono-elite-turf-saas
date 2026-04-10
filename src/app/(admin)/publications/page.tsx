@@ -13,7 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { getPublicationActionPolicy } from "@/domain/entity-action-policy";
 import { PUBLICATION_MODE_OPTIONS, PUBLICATION_TARGET_OPTIONS } from "@/domain/options";
 import { formatDateTime, formatStatusLabel } from "@/lib/format";
-import { parsePublicationDeliveryMeta, parsePublicationPayload } from "@/lib/publication-payload";
+import {
+  parsePublicationAttemptHistory,
+  parsePublicationDebugMeta,
+  parsePublicationDeliveryMeta,
+  parsePublicationPayload
+} from "@/lib/publication-payload";
 import { asStringValue } from "@/lib/validation";
 import { getPublicationById, getPublicationRows, getRacesForSelect } from "@/services/backoffice-service";
 import { getPublicationTargetRuntimeMode } from "@/services/publication/publication-runtime";
@@ -27,6 +32,22 @@ import {
   validatePublicationJobAction
 } from "./actions";
 
+function formatJsonBlock(value: unknown) {
+  if (value === undefined) {
+    return "Aucune donnee disponible.";
+  }
+
+  if (value === null) {
+    return "null";
+  }
+
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "Impossible d'afficher cette structure JSON.";
+  }
+}
+
 export default async function PublicationsPage({
   searchParams
 }: {
@@ -34,20 +55,28 @@ export default async function PublicationsPage({
 }) {
   const params = await searchParams;
   const editId = asStringValue(params.edit);
+  const debugId = asStringValue(params.debug);
   const message = asStringValue(params.message);
   const showArchived = asStringValue(params.archived) === "1";
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
   const listHref = showArchived ? "/publications?archived=1" : "/publications";
 
-  const [rows, races, editingPublication] = await Promise.all([
+  const [rows, races, editingPublication, debugPublication] = await Promise.all([
     getPublicationRows({ archived: showArchived }),
     getRacesForSelect(),
-    editId ? getPublicationById(editId) : Promise.resolve(null)
+    editId ? getPublicationById(editId) : Promise.resolve(null),
+    debugId ? getPublicationById(debugId) : Promise.resolve(null)
   ]);
 
   const editingPayload = parsePublicationPayload(editingPublication?.payloadJson);
   const editingTarget = normalizePublicationTarget(editingPublication?.target ?? "") ?? "mock";
   const editingRuntimeMode = getPublicationTargetRuntimeMode(editingTarget);
+  const debugPayload = parsePublicationPayload(debugPublication?.payloadJson);
+  const debugDeliveryMeta = parsePublicationDeliveryMeta(debugPublication?.payloadJson);
+  const debugMeta = parsePublicationDebugMeta(debugPublication?.payloadJson);
+  const debugHistory = parsePublicationAttemptHistory(debugPublication?.payloadJson).reverse();
+  const debugTarget = normalizePublicationTarget(debugPublication?.target ?? "") ?? "mock";
+  const debugRuntimeMode = debugDeliveryMeta?.deliveryMode ?? getPublicationTargetRuntimeMode(debugTarget);
 
   return (
     <div className="space-y-6">
@@ -220,6 +249,9 @@ export default async function PublicationsPage({
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {!showArchived ? <LinkButton href={`/publications?edit=${row.id}`}>Editer</LinkButton> : null}
+                        <LinkButton href={showArchived ? `/publications?archived=1&debug=${row.id}` : `/publications?debug=${row.id}`}>
+                          Debug
+                        </LinkButton>
                         {!showArchived ? (
                           <form action={validatePublicationJobAction}>
                             <input type="hidden" name="id" value={row.id} />
@@ -256,6 +288,140 @@ export default async function PublicationsPage({
           />
         </Panel>
       </div>
+
+      <Panel
+        title={debugPublication ? "Debug publication" : "Vue debug publication"}
+        description={
+          debugPublication
+            ? "Cette fiche montre le payload envoye, la reponse recue et les metadonnees utiles pour deboguer un provider sans exposer les secrets."
+            : "Choisissez Debug depuis une ligne de publication pour inspecter la requete envoyee et la reponse retournee."
+        }
+      >
+        {debugPublication ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Provider</p>
+                <p className="mt-2 font-semibold text-slate-950">{formatStatusLabel(debugTarget)}</p>
+                <p className="mt-1 text-sm text-slate-500">Cible configuree : {debugPublication.target}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Mode effectif</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <ActionPolicyBadge
+                    label={formatStatusLabel(debugRuntimeMode)}
+                    tone={debugRuntimeMode === "real" ? "allowed" : debugRuntimeMode === "prepared" ? "info" : "blocked"}
+                  />
+                  <ActionPolicyBadge label={formatStatusLabel(debugPublication.mode)} tone="info" />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Statut</p>
+                <div className="mt-2">
+                  <StatusBadge status={debugPublication.status} />
+                </div>
+                <p className="mt-2 text-sm text-slate-500">Reference : {debugDeliveryMeta?.externalReference ?? "Aucune"}</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Course liee</p>
+                <p className="mt-2 font-semibold text-slate-950">{debugPublication.race.raceName}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {debugPublication.race.venue} • {debugPublication.race.raceTime} • {formatStatusLabel(debugPublication.race.status)}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Synthese editoriale</h3>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <p><span className="font-medium text-slate-950">Titre :</span> {debugPayload?.title ?? "Non disponible"}</p>
+                  <p><span className="font-medium text-slate-950">Extrait :</span> {debugPayload?.excerpt ?? "Non disponible"}</p>
+                  <p><span className="font-medium text-slate-950">Contenu :</span> {debugPayload?.body ?? "Non disponible"}</p>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Horodatages utiles</h3>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <p><span className="font-medium text-slate-950">Cree le :</span> {formatDateTime(debugPublication.createdAt)}</p>
+                  <p><span className="font-medium text-slate-950">Mis a jour le :</span> {formatDateTime(debugPublication.updatedAt)}</p>
+                  <p><span className="font-medium text-slate-950">Derniere tentative :</span> {debugMeta?.lastAttemptAt ? formatDateTime(new Date(debugMeta.lastAttemptAt)) : "Aucune"}</p>
+                  <p><span className="font-medium text-slate-950">Publie le :</span> {debugPublication.publishedAt ? formatDateTime(debugPublication.publishedAt) : "Non publie"}</p>
+                  <p><span className="font-medium text-slate-950">Archive :</span> {debugPublication.archivedAt ? formatDateTime(debugPublication.archivedAt) : "Non"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Payload envoye</h3>
+                <p className="mt-2 text-sm text-slate-500">Le contenu visible ici exclut les secrets de configuration comme les tokens et mots de passe applicatifs.</p>
+                <pre className="mt-4 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{formatJsonBlock(debugMeta?.sentPayload)}</pre>
+              </div>
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <h3 className="text-sm font-semibold text-slate-950">Reponse recue</h3>
+                <p className="mt-2 text-sm text-slate-500">Utile pour verifier le mode mock, WordPress REST ou API custom pendant les tests d'integration.</p>
+                <pre className="mt-4 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{formatJsonBlock(debugMeta?.receivedResponse)}</pre>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Etat d'execution</h3>
+              <div className="mt-3 space-y-2 text-sm text-slate-600">
+                <p><span className="font-medium text-slate-950">Message d'erreur :</span> {debugPublication.errorMessage ?? "Aucune erreur enregistree."}</p>
+                <p><span className="font-medium text-slate-950">Provider utilise :</span> {debugDeliveryMeta?.providerKey ? formatStatusLabel(debugDeliveryMeta.providerKey) : "Non determine"}</p>
+                <p><span className="font-medium text-slate-950">Reference externe :</span> {debugDeliveryMeta?.externalReference ?? "Aucune"}</p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 p-4">
+              <h3 className="text-sm font-semibold text-slate-950">Historique des tentatives</h3>
+              <p className="mt-2 text-sm text-slate-500">Chaque publication relancee ajoute une trace complete de la tentative sans ecraser les precedentes.</p>
+              {debugHistory.length ? (
+                <div className="mt-4 space-y-4">
+                  {debugHistory.map((attempt, index) => (
+                    <div key={`${attempt.attemptedAt ?? "attempt"}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ActionPolicyBadge
+                          label={formatStatusLabel(attempt.providerKey ?? attempt.target ?? "mock")}
+                          tone="info"
+                        />
+                        <ActionPolicyBadge
+                          label={formatStatusLabel(attempt.deliveryMode ?? "mock")}
+                          tone={attempt.deliveryMode === "real" ? "allowed" : attempt.deliveryMode === "prepared" ? "info" : "blocked"}
+                        />
+                        {attempt.status ? <StatusBadge status={attempt.status as "DRAFT" | "READY" | "BLOCKED" | "PUBLISHED" | "FAILED"} /> : null}
+                      </div>
+
+                      <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
+                        <p><span className="font-medium text-slate-950">Tentative :</span> {attempt.attemptedAt ? formatDateTime(new Date(attempt.attemptedAt)) : "Inconnue"}</p>
+                        <p><span className="font-medium text-slate-950">Reference externe :</span> {attempt.externalReference ?? "Aucune"}</p>
+                        <p><span className="font-medium text-slate-950">Publie le :</span> {attempt.publishedAt ? formatDateTime(new Date(attempt.publishedAt)) : "Non publie"}</p>
+                        <p><span className="font-medium text-slate-950">Erreur :</span> {attempt.errorMessage ?? "Aucune"}</p>
+                      </div>
+
+                      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Payload envoye</p>
+                          <pre className="mt-2 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{formatJsonBlock(attempt.sentPayload)}</pre>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Reponse recue</p>
+                          <pre className="mt-2 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">{formatJsonBlock(attempt.receivedResponse)}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">Aucune tentative de publication enregistree pour le moment.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">Aucune publication selectionnee pour le debug.</p>
+        )}
+      </Panel>
     </div>
   );
 }

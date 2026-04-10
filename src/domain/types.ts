@@ -51,6 +51,8 @@ export type PublicationExecutionResult = {
   externalReference?: string;
   providerKey?: string;
   deliveryMode?: "mock" | "real";
+  requestPayload?: unknown;
+  responsePayload?: unknown;
 };
 
 export type PublicationProviderInput = {
