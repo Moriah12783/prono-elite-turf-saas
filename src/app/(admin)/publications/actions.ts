@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
 import { syncRacePublicationStatus } from "@/lib/publication-sync";
+import { ensurePublicationDeletionAllowed } from "@/services/deletion-guard-service";
 import { publishPublicationJob, refreshPublicationJobStatus } from "@/services/publication/publication-service";
 import { assertRequiredString, parseEnumValue, parseOptionalString } from "@/lib/validation";
 
@@ -163,6 +164,7 @@ export async function deletePublicationJobAction(formData: FormData) {
   const id = assertRequiredString(formData.get("id"), "L'identifiant publication");
 
   try {
+    await ensurePublicationDeletionAllowed(id);
     const deleted = await prisma.publicationJob.delete({ where: { id } });
     await syncRacePublicationStatus(deleted.raceId);
 

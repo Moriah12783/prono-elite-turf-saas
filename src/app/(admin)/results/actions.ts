@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
+import { ensureResultDeletionAllowed } from "@/services/deletion-guard-service";
 import { assertRequiredString, parseEnumValue, parseJsonArray } from "@/lib/validation";
 
 const PATH = "/results";
@@ -102,6 +103,7 @@ export async function deleteResultAction(formData: FormData) {
   const id = assertRequiredString(formData.get("id"), "L'identifiant resultat");
 
   try {
+    await ensureResultDeletionAllowed(id);
     await prisma.result.delete({ where: { id } });
 
     await createAuditLog({

@@ -2,6 +2,13 @@ import { Prisma } from "@prisma/client";
 
 import { ValidationError } from "@/lib/validation";
 
+export class DeletionBlockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DeletionBlockedError";
+  }
+}
+
 function isRedirectError(error: unknown) {
   return (
     typeof error === "object" &&
@@ -28,6 +35,21 @@ export function logServerActionError(actionName: string, error: unknown, context
 export function getUserFacingActionErrorMessage(error: unknown, fallbackMessage: string) {
   if (error instanceof ValidationError) {
     return error.message;
+  }
+
+  if (error instanceof DeletionBlockedError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    if (
+      error.message.includes("introuvable") ||
+      error.message.includes("Suppression impossible") ||
+      error.message.includes("existe deja") ||
+      error.message.includes("possede deja")
+    ) {
+      return error.message;
+    }
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {

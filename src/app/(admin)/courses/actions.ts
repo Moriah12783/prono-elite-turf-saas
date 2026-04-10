@@ -9,6 +9,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
+import { ensureCourseDeletionAllowed } from "@/services/deletion-guard-service";
 import {
   assertRequiredString,
   combineDateAndTime,
@@ -109,6 +110,7 @@ export async function deleteCourseAction(formData: FormData) {
   const id = assertRequiredString(formData.get("id"), "L'identifiant course");
 
   try {
+    await ensureCourseDeletionAllowed(id);
     await prisma.race.delete({ where: { id } });
 
     await createAuditLog({

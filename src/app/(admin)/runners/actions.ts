@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
 import { syncRaceDerivedFields } from "@/lib/race-sync";
+import { ensureRunnerDeletionAllowed } from "@/services/deletion-guard-service";
 import {
   assertRequiredString,
   parseBoolean,
@@ -120,15 +121,16 @@ export async function deleteRunnerAction(formData: FormData) {
   const id = assertRequiredString(formData.get("id"), "L'identifiant partant");
 
   try {
-    const runner = await prisma.runner.delete({ where: { id } });
-    await syncRaceDerivedFields(runner.raceId);
+    const raceId = await ensureRunnerDeletionAllowed(id);
+    await prisma.runner.delete({ where: { id } });
+    await syncRaceDerivedFields(raceId);
 
     await createAuditLog({
       actorId: user.id,
       actionType: AuditActionType.DELETE,
       entityType: AuditEntityType.RUNNER,
       entityId: id,
-      metadataJson: { raceId: runner.raceId }
+      metadataJson: { raceId }
     });
 
     revalidatePath(PATH);

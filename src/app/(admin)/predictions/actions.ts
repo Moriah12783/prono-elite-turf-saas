@@ -9,6 +9,7 @@ import { createAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
+import { ensurePredictionDeletionAllowed } from "@/services/deletion-guard-service";
 import { assertRequiredString, parseEnumValue } from "@/lib/validation";
 
 const PATH = "/predictions";
@@ -124,6 +125,7 @@ export async function deletePredictionAction(formData: FormData) {
   const id = assertRequiredString(formData.get("id"), "L'identifiant pronostic");
 
   try {
+    await ensurePredictionDeletionAllowed(id);
     await prisma.prediction.delete({ where: { id } });
 
     await createAuditLog({
