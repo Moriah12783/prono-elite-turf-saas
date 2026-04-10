@@ -4,11 +4,12 @@ import { ApprovalStatus, AuditActionType, AuditEntityType, ConfidenceLabel } fro
 import { revalidatePath } from "next/cache";
 
 import { APPROVAL_STATUS_OPTIONS, CONFIDENCE_LABEL_OPTIONS } from "@/domain/options";
+import { getUserFacingActionErrorMessage, logServerActionError, rethrowIfRedirectError } from "@/lib/action-errors";
 import { createAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
-import { assertRequiredString, parseEnumValue, ValidationError } from "@/lib/validation";
+import { assertRequiredString, parseEnumValue } from "@/lib/validation";
 
 const PATH = "/predictions";
 
@@ -16,6 +17,7 @@ export async function savePredictionAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
   const id = formData.get("id")?.toString() || undefined;
+  const actionName = id ? "save-prediction:update" : "save-prediction:create";
 
   try {
     const raceId = assertRequiredString(formData.get("raceId"), "La course");
@@ -35,6 +37,22 @@ export async function savePredictionAction(formData: FormData) {
       "Le statut d'approbation",
       APPROVAL_STATUS_OPTIONS
     ) as ApprovalStatus;
+
+    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    if (!race) {
+      throw new Error("La course selectionnee est introuvable.");
+    }
+
+    if (!id) {
+      const existingPrediction = await prisma.prediction.findUnique({
+        where: { raceId },
+        select: { id: true }
+      });
+
+      if (existingPrediction) {
+        throw new Error("Cette course possede deja un pronostic. Ouvrez la fiche existante pour la modifier.");
+      }
+    }
 
     const savedPrediction = id
       ? await prisma.prediction.update({
@@ -82,7 +100,20 @@ export async function savePredictionAction(formData: FormData) {
     revalidatePath(PATH);
     redirectWithFeedback(PATH, "success", id ? "Pronostic mis a jour." : "Pronostic cree.");
   } catch (error) {
-    const message = error instanceof ValidationError ? error.message : "Impossible d'enregistrer le pronostic.";
+    rethrowIfRedirectError(error);
+    logServerActionError(actionName, error, {
+      userId: user.id,
+      id,
+      formData: Object.fromEntries(formData.entries())
+    });
+    const message = getUserFacingActionErrorMessage(
+      error,
+      error instanceof Error &&
+      (error.message === "La course selectionnee est introuvable." ||
+        error.message === "Cette course possede deja un pronostic. Ouvrez la fiche existante pour la modifier.")
+        ? error.message
+        : "Impossible d'enregistrer le pronostic."
+    );
     redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
   }
 }
@@ -92,15 +123,25 @@ export async function deletePredictionAction(formData: FormData) {
   const prisma = getPrisma();
   const id = assertRequiredString(formData.get("id"), "L'identifiant pronostic");
 
-  await prisma.prediction.delete({ where: { id } });
+  try {
+    await prisma.prediction.delete({ where: { id } });
 
-  await createAuditLog({
-    actorId: user.id,
-    actionType: AuditActionType.DELETE,
-    entityType: AuditEntityType.PREDICTION,
-    entityId: id
-  });
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.DELETE,
+      entityType: AuditEntityType.PREDICTION,
+      entityId: id
+    });
 
-  revalidatePath(PATH);
-  redirectWithFeedback(PATH, "success", "Pronostic supprime.");
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Pronostic supprime.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("delete-prediction", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer le pronostic.");
+    redirectWithFeedback(PATH, "error", message);
+  }
 }

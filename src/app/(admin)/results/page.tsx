@@ -30,6 +30,9 @@ export default async function ResultsPage({
     getRacesForSelect(),
     editId ? getResultById(editId) : Promise.resolve(null)
   ]);
+  const selectableRaces = editingResult
+    ? races
+    : races.filter((race) => !race.result);
 
   return (
     <div className="space-y-6">
@@ -46,8 +49,8 @@ export default async function ResultsPage({
           <form action={saveResultAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingResult?.id ?? ""} />
             <Field label="Course">
-              <Select name="raceId" defaultValue={editingResult?.raceId ?? races[0]?.id ?? ""} required>
-                {races.map((race) => (
+              <Select name="raceId" defaultValue={editingResult?.raceId ?? selectableRaces[0]?.id ?? ""} required>
+                {selectableRaces.map((race) => (
                   <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
                 ))}
               </Select>
@@ -65,10 +68,15 @@ export default async function ResultsPage({
               </Field>
             </div>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={!races.length}>{editingResult ? "Mettre a jour" : "Creer le resultat"}</Button>
+              <Button type="submit" disabled={!selectableRaces.length && !editingResult}>{editingResult ? "Mettre a jour" : "Creer le resultat"}</Button>
               {editingResult ? <LinkButton href="/results">Annuler</LinkButton> : null}
             </div>
           </form>
+          {!editingResult && !selectableRaces.length ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Toutes les courses ont deja un resultat. Editez une fiche existante ou ajoutez une nouvelle course.
+            </p>
+          ) : null}
         </Panel>
 
         <Panel title="Liste des resultats" description="Suivi des arrivees et lecture rapide de l'ecart entre analyse et reel.">

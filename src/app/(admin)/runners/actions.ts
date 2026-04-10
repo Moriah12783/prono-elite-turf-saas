@@ -4,12 +4,20 @@ import { AuditActionType, AuditEntityType, Prisma, RunnerStatus } from "@prisma/
 import { revalidatePath } from "next/cache";
 
 import { RUNNER_STATUS_OPTIONS } from "@/domain/options";
+import { getUserFacingActionErrorMessage, logServerActionError, rethrowIfRedirectError } from "@/lib/action-errors";
 import { createAuditLog } from "@/lib/audit";
 import { requireAdmin } from "@/lib/auth";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
 import { syncRaceDerivedFields } from "@/lib/race-sync";
-import { assertRequiredString, parseBoolean, parseEnumValue, parseInteger, parseOptionalFloat, parseOptionalString, ValidationError } from "@/lib/validation";
+import {
+  assertRequiredString,
+  parseBoolean,
+  parseEnumValue,
+  parseInteger,
+  parseOptionalFloat,
+  parseOptionalString
+} from "@/lib/validation";
 
 const PATH = "/runners";
 
@@ -17,6 +25,7 @@ export async function saveRunnerAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
   const id = formData.get("id")?.toString() || undefined;
+  const actionName = id ? "save-runner:update" : "save-runner:create";
 
   try {
     const raceId = assertRequiredString(formData.get("raceId"), "La course");
@@ -28,6 +37,27 @@ export async function saveRunnerAction(formData: FormData) {
     const isNonRunner = parseBoolean(formData.get("isNonRunner"));
     const status = parseEnumValue(formData.get("status"), "Le statut partant", RUNNER_STATUS_OPTIONS) as RunnerStatus;
     const rawData = parseOptionalString(formData.get("rawDataJson"), 1000);
+
+    const race = await prisma.race.findUnique({ where: { id: raceId }, select: { id: true } });
+    if (!race) {
+      throw new Error("La course selectionnee est introuvable.");
+    }
+
+    if (!id) {
+      const existingRunner = await prisma.runner.findUnique({
+        where: {
+          raceId_number: {
+            raceId,
+            number
+          }
+        },
+        select: { id: true }
+      });
+
+      if (existingRunner) {
+        throw new Error("Ce numero existe deja pour cette course.");
+      }
+    }
 
     const payload = {
       raceId,
@@ -66,7 +96,20 @@ export async function saveRunnerAction(formData: FormData) {
     revalidatePath(PATH);
     redirectWithFeedback(PATH, "success", id ? "Partant mis a jour." : "Partant cree.");
   } catch (error) {
-    const message = error instanceof SyntaxError ? "Le JSON brut est invalide." : error instanceof ValidationError ? error.message : "Impossible d'enregistrer le partant.";
+    rethrowIfRedirectError(error);
+    logServerActionError(actionName, error, {
+      userId: user.id,
+      id,
+      formData: Object.fromEntries(formData.entries())
+    });
+    const message = getUserFacingActionErrorMessage(
+      error,
+      error instanceof Error &&
+      (error.message === "La course selectionnee est introuvable." ||
+        error.message === "Ce numero existe deja pour cette course.")
+        ? error.message
+        : "Impossible d'enregistrer le partant."
+    );
     redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
   }
 }
@@ -76,17 +119,27 @@ export async function deleteRunnerAction(formData: FormData) {
   const prisma = getPrisma();
   const id = assertRequiredString(formData.get("id"), "L'identifiant partant");
 
-  const runner = await prisma.runner.delete({ where: { id } });
-  await syncRaceDerivedFields(runner.raceId);
+  try {
+    const runner = await prisma.runner.delete({ where: { id } });
+    await syncRaceDerivedFields(runner.raceId);
 
-  await createAuditLog({
-    actorId: user.id,
-    actionType: AuditActionType.DELETE,
-    entityType: AuditEntityType.RUNNER,
-    entityId: id,
-    metadataJson: { raceId: runner.raceId }
-  });
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.DELETE,
+      entityType: AuditEntityType.RUNNER,
+      entityId: id,
+      metadataJson: { raceId: runner.raceId }
+    });
 
-  revalidatePath(PATH);
-  redirectWithFeedback(PATH, "success", "Partant supprime.");
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Partant supprime.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("delete-runner", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer le partant.");
+    redirectWithFeedback(PATH, "error", message);
+  }
 }

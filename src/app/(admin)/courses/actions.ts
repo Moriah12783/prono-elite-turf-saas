@@ -3,12 +3,21 @@
 import { AuditActionType, AuditEntityType, PublicationStatus, RaceStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
+import { PUBLICATION_STATUS_OPTIONS, RACE_STATUS_OPTIONS } from "@/domain/options";
+import { getUserFacingActionErrorMessage, logServerActionError, rethrowIfRedirectError } from "@/lib/action-errors";
 import { requireAdmin } from "@/lib/auth";
 import { createAuditLog } from "@/lib/audit";
 import { redirectWithFeedback } from "@/lib/feedback";
 import { getPrisma } from "@/lib/prisma";
-import { PUBLICATION_STATUS_OPTIONS, RACE_STATUS_OPTIONS } from "@/domain/options";
-import { combineDateAndTime, parseDate, parseEnumValue, parseInteger, parseOptionalInteger, parseTime, ValidationError, assertRequiredString } from "@/lib/validation";
+import {
+  assertRequiredString,
+  combineDateAndTime,
+  parseDate,
+  parseEnumValue,
+  parseInteger,
+  parseOptionalInteger,
+  parseTime
+} from "@/lib/validation";
 
 const PATH = "/courses";
 
@@ -16,6 +25,7 @@ export async function saveCourseAction(formData: FormData) {
   const user = await requireAdmin();
   const prisma = getPrisma();
   const id = formData.get("id")?.toString() || undefined;
+  const actionName = id ? "save-course:update" : "save-course:create";
 
   try {
     const raceName = assertRequiredString(formData.get("raceName"), "Le nom de la course", 120);
@@ -82,7 +92,13 @@ export async function saveCourseAction(formData: FormData) {
     revalidatePath(PATH);
     redirectWithFeedback(PATH, "success", id ? "Course mise a jour." : "Course creee.");
   } catch (error) {
-    const message = error instanceof ValidationError ? error.message : "Impossible d'enregistrer la course.";
+    rethrowIfRedirectError(error);
+    logServerActionError(actionName, error, {
+      userId: user.id,
+      id,
+      formData: Object.fromEntries(formData.entries())
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible d'enregistrer la course.");
     redirectWithFeedback(PATH, "error", message, id ? { edit: id } : undefined);
   }
 }
@@ -92,15 +108,25 @@ export async function deleteCourseAction(formData: FormData) {
   const prisma = getPrisma();
   const id = assertRequiredString(formData.get("id"), "L'identifiant course");
 
-  await prisma.race.delete({ where: { id } });
+  try {
+    await prisma.race.delete({ where: { id } });
 
-  await createAuditLog({
-    actorId: user.id,
-    actionType: AuditActionType.DELETE,
-    entityType: AuditEntityType.RACE,
-    entityId: id
-  });
+    await createAuditLog({
+      actorId: user.id,
+      actionType: AuditActionType.DELETE,
+      entityType: AuditEntityType.RACE,
+      entityId: id
+    });
 
-  revalidatePath(PATH);
-  redirectWithFeedback(PATH, "success", "Course supprimee.");
+    revalidatePath(PATH);
+    redirectWithFeedback(PATH, "success", "Course supprimee.");
+  } catch (error) {
+    rethrowIfRedirectError(error);
+    logServerActionError("delete-course", error, {
+      userId: user.id,
+      id
+    });
+    const message = getUserFacingActionErrorMessage(error, "Impossible de supprimer la course.");
+    redirectWithFeedback(PATH, "error", message);
+  }
 }

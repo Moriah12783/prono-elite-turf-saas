@@ -31,6 +31,9 @@ export default async function PredictionsPage({
     getRacesForSelect(),
     editId ? getPredictionById(editId) : Promise.resolve(null)
   ]);
+  const selectableRaces = editingPrediction
+    ? races
+    : races.filter((race) => !race.prediction);
 
   return (
     <div className="space-y-6">
@@ -47,8 +50,8 @@ export default async function PredictionsPage({
           <form action={savePredictionAction} className="grid gap-4 md:grid-cols-2">
             <input type="hidden" name="id" value={editingPrediction?.id ?? ""} />
             <Field label="Course">
-              <Select name="raceId" defaultValue={editingPrediction?.raceId ?? races[0]?.id ?? ""} required>
-                {races.map((race) => (
+              <Select name="raceId" defaultValue={editingPrediction?.raceId ?? selectableRaces[0]?.id ?? ""} required>
+                {selectableRaces.map((race) => (
                   <option key={race.id} value={race.id}>{race.raceName} • {race.venue} • {race.raceTime}</option>
                 ))}
               </Select>
@@ -90,10 +93,15 @@ export default async function PredictionsPage({
               </Field>
             </div>
             <div className="md:col-span-2 flex flex-wrap gap-3 pt-2">
-              <Button type="submit" disabled={!races.length}>{editingPrediction ? "Mettre a jour" : "Creer le pronostic"}</Button>
+              <Button type="submit" disabled={!selectableRaces.length && !editingPrediction}>{editingPrediction ? "Mettre a jour" : "Creer le pronostic"}</Button>
               {editingPrediction ? <LinkButton href="/predictions">Annuler</LinkButton> : null}
             </div>
           </form>
+          {!editingPrediction && !selectableRaces.length ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Toutes les courses ont deja un pronostic. Editez une fiche existante ou creez une nouvelle course.
+            </p>
+          ) : null}
         </Panel>
 
         <Panel title="Liste des pronostics" description="Suivi des pronostics generes, du niveau de confiance et du statut editorial.">

@@ -53,7 +53,13 @@ export async function getRacesForSelect() {
       raceName: true,
       venue: true,
       raceTime: true,
-      status: true
+      status: true,
+      prediction: {
+        select: { id: true }
+      },
+      result: {
+        select: { id: true }
+      }
     },
     orderBy: [{ raceDate: "asc" }, { raceTime: "asc" }]
   });
