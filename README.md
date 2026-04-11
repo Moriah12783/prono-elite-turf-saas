@@ -268,6 +268,19 @@ Fenetres actuellement configurees :
 - `VALIDATE_READY_PUBLICATIONS` : `09:00-12:00 UTC`
 - `ATTEMPT_AUTOMATIC_PUBLICATIONS` : `12:00-18:00 UTC`
 
+### Plan quotidien recommande
+
+Le plan quotidien d''orchestration recommande est documente ici :
+
+- [docs/plan-quotidien-scheduler-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\plan-quotidien-scheduler-prono-elite-turf.md)
+
+Ce document couvre :
+
+- l''ordre logique entre les jobs
+- les frequences cron recommandees
+- les heures UTC conseillees
+- la strategie de mise en route progressive
+- les dependances et verifications avant un vrai cron externe
 ### Contrat API cron / scheduler
 
 Le contrat d'appel complet est documente ici :
@@ -368,3 +381,4 @@ Les migrations actuelles couvrent notamment :
 - connecteur WordPress REST API reel
 - connecteur API custom reel
 - automatisation conditionnelle et scheduler complet
+
