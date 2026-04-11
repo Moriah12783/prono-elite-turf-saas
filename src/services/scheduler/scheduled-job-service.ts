@@ -439,6 +439,54 @@ export function getScheduledJobDefinitions() {
   return scheduledJobDefinitions;
 }
 
+export async function getScheduledJobOverview() {
+  const prisma = getPrisma();
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const recentRuns = await prisma.scheduledJobRun.findMany({
+    where: {
+      createdAt: {
+        gte: since
+      }
+    },
+    orderBy: [{ createdAt: "desc" }],
+    include: {
+      requestedBy: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    }
+  });
+
+  return scheduledJobDefinitions.map((definition) => {
+    const jobRuns = recentRuns.filter((run) => run.jobKey === definition.key);
+    const lastRun = jobRuns[0] ?? null;
+    const lastSuccess = jobRuns.find((run) => run.status === ScheduledJobRunStatus.SUCCEEDED) ?? null;
+    const lastFailure = jobRuns.find((run) => run.status === ScheduledJobRunStatus.FAILED) ?? null;
+    const recentFailures = jobRuns.filter((run) => run.status === ScheduledJobRunStatus.FAILED);
+    const recentOutsideWindowSkips = jobRuns.filter(
+      (run) =>
+        run.status === ScheduledJobRunStatus.SKIPPED &&
+        typeof run.summaryJson === "object" &&
+        run.summaryJson !== null &&
+        "reason" in (run.summaryJson as Record<string, unknown>) &&
+        (run.summaryJson as Record<string, unknown>).reason === "outside_window"
+    );
+
+    return {
+      ...definition,
+      lastRun,
+      lastSuccess,
+      lastFailure,
+      lastStatus: lastRun?.status ?? null,
+      recentFailureCount: recentFailures.length,
+      recentOutsideWindowSkipCount: recentOutsideWindowSkips.length
+    };
+  });
+}
+
 export function getScheduledJobGuardrails(jobKey: ScheduledJobKey) {
   const definition = getScheduledJobDefinition(jobKey);
 
