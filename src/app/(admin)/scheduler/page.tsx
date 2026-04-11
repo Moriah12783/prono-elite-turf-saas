@@ -2,6 +2,7 @@
 
 import { ActionPolicyBadge } from "@/components/ui/action-policy-badge";
 import { Button } from "@/components/ui/button";
+import { LinkButton } from "@/components/ui/link-button";
 import { Notice } from "@/components/ui/notice";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -15,11 +16,19 @@ import {
   getScheduledJobDefinitions,
   getScheduledJobOverview,
   getScheduledJobRuns,
-  getSchedulerGlobalAttentionStatus
+  getSchedulerGlobalAttentionStatus,
+  type SchedulerExpectedSummary,
+  type SchedulerPeriod
 } from "@/services/scheduler/scheduled-job-service";
 import { formatExecutionWindow, formatRecommendedMode } from "@/services/scheduler/scheduled-jobs";
 
 import { runScheduledJobAction } from "./actions";
+
+const PERIOD_OPTIONS: Array<{ value: SchedulerPeriod; label: string }> = [
+  { value: "today", label: "Aujourd'hui" },
+  { value: "24h", label: "24h" },
+  { value: "7d", label: "7 jours" }
+];
 
 function getRunSummaryText(summary: unknown) {
   if (!summary || typeof summary !== "object") {
@@ -102,6 +111,18 @@ function getGlobalClasses(level: "ok" | "alert" | "blocked") {
   return "border-rose-200 bg-rose-50 text-rose-900";
 }
 
+function getSafeExpectedSummary(
+  summary: Partial<SchedulerExpectedSummary> | null | undefined,
+  fallbackLabel: string
+): SchedulerExpectedSummary {
+  return {
+    label: typeof summary?.label === "string" && summary.label.length > 0 ? summary.label : fallbackLabel,
+    total: typeof summary?.total === "number" ? summary.total : 0,
+    executed: typeof summary?.executed === "number" ? summary.executed : 0,
+    pending: typeof summary?.pending === "number" ? summary.pending : 0
+  };
+}
+
 export default async function SchedulerPage({
   searchParams
 }: {
@@ -112,14 +133,20 @@ export default async function SchedulerPage({
   const params = await searchParams;
   const message = asStringValue(params.message);
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
+  const requestedPeriod = asStringValue(params.period);
+  const period: SchedulerPeriod = requestedPeriod === "today" || requestedPeriod === "24h" || requestedPeriod === "7d" ? requestedPeriod : "today";
 
   const [definitions, overview, globalAttention, runs, alerts] = await Promise.all([
     getScheduledJobDefinitions(),
-    getScheduledJobOverview(),
-    getSchedulerGlobalAttentionStatus(),
-    getScheduledJobRuns(25),
-    getRecentScheduledJobAlerts(6)
+    getScheduledJobOverview(period),
+    getSchedulerGlobalAttentionStatus(period),
+    getScheduledJobRuns(25, period),
+    getRecentScheduledJobAlerts(6, period)
   ]);
+  const expectedSummary = getSafeExpectedSummary(
+    globalAttention.expectedSummary ?? globalAttention.expectedToday,
+    period === "today" ? "Jobs attendus aujourd'hui" : `Jobs couverts sur ${period}`
+  );
 
   return (
     <div className="space-y-6">
@@ -130,6 +157,17 @@ export default async function SchedulerPage({
       />
 
       {message ? <Notice tone={tone} message={message} /> : null}
+
+      <div className="flex flex-wrap gap-3">
+        {PERIOD_OPTIONS.map((option) => (
+          <LinkButton
+            key={option.value}
+            href={option.value === "today" ? "/scheduler" : `/scheduler?period=${option.value}`}
+          >
+            {option.label}{option.value === period ? " • actif" : ""}
+          </LinkButton>
+        ))}
+      </div>
 
       <div className={`rounded-3xl border p-5 ${getGlobalClasses(globalAttention.level)}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -157,14 +195,14 @@ export default async function SchedulerPage({
                 tone={globalAttention.freshness.tone === "fresh" ? "allowed" : "info"}
               />
             </div>
-            <p className="mt-1 text-xs">Le bandeau s'appuie sur les runs les plus recents du scheduler.</p>
+            <p className="mt-1 text-xs">Le bandeau s'appuie sur les runs les plus recents de la periode selectionnee.</p>
           </div>
           <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
-            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Jobs attendus aujourd'hui</p>
+            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{expectedSummary.label}</p>
             <p className="mt-2 font-semibold text-slate-950">
-              {globalAttention.expectedToday.executed} executes / {globalAttention.expectedToday.total} attendus
+              {expectedSummary.executed} executes / {expectedSummary.total} attendus
             </p>
-            <p className="mt-1 text-xs">Restants : {globalAttention.expectedToday.pending}</p>
+            <p className="mt-1 text-xs">Restants : {expectedSummary.pending}</p>
           </div>
         </div>
         {globalAttention.details.length ? (
@@ -180,7 +218,7 @@ export default async function SchedulerPage({
 
       <Panel
         title="Vue synthese"
-        description="Lecture rapide de l'etat quotidien par job : dernier run, dernier succes, dernier echec, fenetre UTC et signaux de supervision."
+        description={`Lecture rapide de l'etat des jobs sur la periode ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
       >
         <div className="grid gap-4 xl:grid-cols-3">
           {overview.map((job) => {
@@ -228,7 +266,7 @@ export default async function SchedulerPage({
       {alerts.length ? (
         <Panel
           title="Alertes recentes"
-          description="Signalements locaux issus des derniers runs en echec ou ignores hors fenetre."
+          description={`Signalements locaux sur ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
         >
           <div className="space-y-3">
             {alerts.map((alert) => (
@@ -288,7 +326,7 @@ export default async function SchedulerPage({
 
       <Panel
         title="Derniers runs"
-        description="Historique recent des executions manuelles, API ou cron."
+        description={`Historique des runs sur ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
       >
         <SimpleTable
           rows={runs}
@@ -350,4 +388,3 @@ export default async function SchedulerPage({
     </div>
   );
 }
-

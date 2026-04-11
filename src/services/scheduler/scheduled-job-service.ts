@@ -28,6 +28,29 @@ type RunScheduledJobInput = {
 
 type JsonRecord = Prisma.InputJsonObject;
 type ScheduledJobExecutionSummary = JsonRecord;
+export type SchedulerPeriod = "today" | "24h" | "7d";
+export type SchedulerExpectedSummary = {
+  label: string;
+  total: number;
+  executed: number;
+  pending: number;
+};
+
+export type SchedulerGlobalAttentionStatus = {
+  level: "ok" | "alert" | "blocked";
+  title: string;
+  message: string;
+  details: string[];
+  computedAt: Date;
+  lastObservedRun: Date | null;
+  freshness: {
+    label: string;
+    tone: "fresh" | "stale";
+  };
+  expectedSummary: SchedulerExpectedSummary;
+  expectedToday: SchedulerExpectedSummary;
+  period: SchedulerPeriod;
+};
 
 const RUNNING_LOCK_WINDOW_MS = 15 * 60 * 1000;
 export const RUNNING_LOCK_WINDOW_MINUTES = RUNNING_LOCK_WINDOW_MS / (60 * 1000);
@@ -43,6 +66,18 @@ function getUtcDayStart(referenceDate = new Date()) {
 
 function getUtcDayEnd(dayStart: Date) {
   return new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function getPeriodStart(period: SchedulerPeriod, now = new Date()) {
+  if (period === "today") {
+    return getUtcDayStart(now);
+  }
+
+  if (period === "24h") {
+    return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  }
+
+  return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 }
 
 function isWithinExecutionWindow(
@@ -385,9 +420,14 @@ async function executeScheduledJob(jobKey: ScheduledJobKey, dayStart: Date, dryR
   }
 }
 
-export async function getScheduledJobRuns(limit = 20) {
+export async function getScheduledJobRuns(limit = 20, period: SchedulerPeriod = "7d") {
   const prisma = getPrisma();
   return prisma.scheduledJobRun.findMany({
+    where: {
+      createdAt: {
+        gte: getPeriodStart(period)
+      }
+    },
     include: {
       requestedBy: {
         select: {
@@ -401,9 +441,9 @@ export async function getScheduledJobRuns(limit = 20) {
   });
 }
 
-export async function getRecentScheduledJobAlerts(limit = 5) {
+export async function getRecentScheduledJobAlerts(limit = 5, period: SchedulerPeriod = "24h") {
   const prisma = getPrisma();
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const since = getPeriodStart(period);
 
   return prisma.scheduledJobRun.findMany({
     where: {
@@ -439,9 +479,9 @@ export function getScheduledJobDefinitions() {
   return scheduledJobDefinitions;
 }
 
-export async function getScheduledJobOverview() {
+export async function getScheduledJobOverview(period: SchedulerPeriod = "7d") {
   const prisma = getPrisma();
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const since = getPeriodStart(period);
 
   const recentRuns = await prisma.scheduledJobRun.findMany({
     where: {
@@ -495,9 +535,12 @@ function isSameUtcDay(left: Date, right: Date) {
   );
 }
 
-export async function getSchedulerGlobalAttentionStatus() {
-  const overview = await getScheduledJobOverview();
+export async function getSchedulerGlobalAttentionStatus(
+  period: SchedulerPeriod = "7d"
+): Promise<SchedulerGlobalAttentionStatus> {
+  const overview = await getScheduledJobOverview(period);
   const now = new Date();
+  const periodStart = getPeriodStart(period, now);
   const lastObservedRun =
     overview
       .map((job) => job.lastRun?.createdAt ?? null)
@@ -518,16 +561,32 @@ export async function getSchedulerGlobalAttentionStatus() {
           label: "A rafraichir",
           tone: "stale" as const
         };
-  const expectedToday = overview.filter((job) => now.getUTCHours() >= job.executionWindowUtc.startHour);
-  const executedToday = expectedToday.filter((job) => (job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false));
-  const pendingToday = expectedToday.filter((job) => !(job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false));
+  const expectedJobs = period === "today"
+    ? overview.filter((job) => now.getUTCHours() >= job.executionWindowUtc.startHour)
+    : overview;
+  const executedJobs = expectedJobs.filter((job) => {
+    if (!job.lastRun) {
+      return false;
+    }
 
-  const missingExpectedRuns = overview.filter((job) => {
-    const windowClosed = now.getUTCHours() >= job.executionWindowUtc.endHour;
-    const hasRunToday = job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false;
-
-    return windowClosed && !hasRunToday;
+    return period === "today" ? isSameUtcDay(job.lastRun.createdAt, now) : job.lastRun.createdAt >= periodStart;
   });
+  const pendingJobs = expectedJobs.filter((job) => !executedJobs.some((executedJob) => executedJob.key === job.key));
+  const expectedSummary: SchedulerExpectedSummary = {
+    label: period === "today" ? "Jobs attendus aujourd'hui" : `Jobs couverts sur ${period}`,
+    total: expectedJobs.length,
+    executed: executedJobs.length,
+    pending: pendingJobs.length
+  };
+
+  const missingExpectedRuns = period === "today"
+    ? overview.filter((job) => {
+        const windowClosed = now.getUTCHours() >= job.executionWindowUtc.endHour;
+        const hasRunToday = job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false;
+
+        return windowClosed && !hasRunToday;
+      })
+    : overview.filter((job) => !job.lastRun || job.lastRun.createdAt < periodStart);
 
   const criticalFailure = overview.find(
     (job) =>
@@ -544,12 +603,10 @@ export async function getSchedulerGlobalAttentionStatus() {
       computedAt: now,
       lastObservedRun,
       freshness,
-      expectedToday: {
-        total: expectedToday.length,
-        executed: executedToday.length,
-        pending: pendingToday.length
-      }
-    };
+      expectedSummary,
+      expectedToday: expectedSummary,
+      period
+    } satisfies SchedulerGlobalAttentionStatus;
   }
 
   if (missingExpectedRuns.length > 0) {
@@ -561,12 +618,10 @@ export async function getSchedulerGlobalAttentionStatus() {
       computedAt: now,
       lastObservedRun,
       freshness,
-      expectedToday: {
-        total: expectedToday.length,
-        executed: executedToday.length,
-        pending: pendingToday.length
-      }
-    };
+      expectedSummary,
+      expectedToday: expectedSummary,
+      period
+    } satisfies SchedulerGlobalAttentionStatus;
   }
 
   const warningJobs = overview.filter(
@@ -588,12 +643,10 @@ export async function getSchedulerGlobalAttentionStatus() {
       computedAt: now,
       lastObservedRun,
       freshness,
-      expectedToday: {
-        total: expectedToday.length,
-        executed: executedToday.length,
-        pending: pendingToday.length
-      }
-    };
+      expectedSummary,
+      expectedToday: expectedSummary,
+      period
+    } satisfies SchedulerGlobalAttentionStatus;
   }
 
   return {
@@ -604,12 +657,10 @@ export async function getSchedulerGlobalAttentionStatus() {
     computedAt: now,
     lastObservedRun,
     freshness,
-    expectedToday: {
-      total: expectedToday.length,
-      executed: executedToday.length,
-      pending: pendingToday.length
-    }
-  };
+    expectedSummary,
+    expectedToday: expectedSummary,
+    period
+  } satisfies SchedulerGlobalAttentionStatus;
 }
 
 export function getScheduledJobGuardrails(jobKey: ScheduledJobKey) {
