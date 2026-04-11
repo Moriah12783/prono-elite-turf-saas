@@ -1,4 +1,4 @@
-# PRONO ELITE TURF
+﻿# PRONO ELITE TURF
 
 MVP d'un back-office SaaS pour piloter la production quotidienne de pronostics hippiques.
 
@@ -40,7 +40,7 @@ Variables principales :
 - `API_CUSTOM_TOKEN` : token Bearer de l'API custom
 - `API_CUSTOM_ENDPOINT` : endpoint de publication custom, par defaut `/publications`
 - `API_CUSTOM_DEFAULT_STATUS` : statut transmis au payload custom (`draft`, `publish`, `pending`, `private`)
-- `SCHEDULER_API_TOKEN` : token Bearer utilise par l'endpoint local des jobs planifies
+- `SCHEDULER_API_TOKEN` : token Bearer utilise par l'endpoint local des jobs planifies, recommande avec au moins 16 caracteres
 
 3. Generer Prisma puis executer la migration :
 
@@ -255,6 +255,33 @@ Une premiere couche de planification est disponible pour preparer l'automatisati
 - `dryRun` disponible pour tout job afin de tester sans effet de bord
 - les runs sont historises en base dans `scheduled_job_runs`
 
+### Fenetres horaires et alertes MVP
+
+- chaque job possede une fenetre simple d'execution en UTC
+- les executions reelles hors fenetre sont ignorees avec un run `SKIPPED`
+- les simulations restent autorisees pour tester le pipeline localement
+- les runs `FAILED` et les `SKIPPED` hors fenetre remontent dans le panneau `Alertes recentes` de `/scheduler`
+
+Fenetres actuellement configurees :
+
+- `PREPARE_DAILY_PUBLICATIONS` : `05:00-09:00 UTC`
+- `VALIDATE_READY_PUBLICATIONS` : `09:00-12:00 UTC`
+- `ATTEMPT_AUTOMATIC_PUBLICATIONS` : `12:00-18:00 UTC`
+
+### Contrat API cron / scheduler
+
+Le contrat d'appel complet est documente ici :
+
+- [docs/contrat-api-scheduler-cron.md](C:\Users\HP\Documents\New%20project\docs\contrat-api-scheduler-cron.md)
+
+L'endpoint expose maintenant :
+
+- `GET /api/jobs/scheduled`
+  - retourne le contrat d'appel, les jobs disponibles, la fenetre UTC et les garde-fous
+- `POST /api/jobs/scheduled`
+  - declenche un job precis
+  - respecte les fenetres horaires, l'anti-doublon et le verrou anti-concurrence meme via API
+
 ### Tester depuis l'admin
 
 1. ouvrir `/scheduler`
@@ -273,7 +300,13 @@ Headers :
 - `Authorization: Bearer <SCHEDULER_API_TOKEN>`
 - `Content-Type: application/json`
 
-Exemple :
+Exemple de lecture du contrat :
+
+```bash
+curl http://localhost:3000/api/jobs/scheduled
+```
+
+Exemple de simulation :
 
 ```bash
 curl -X POST http://localhost:3000/api/jobs/scheduled \
@@ -282,6 +315,19 @@ curl -X POST http://localhost:3000/api/jobs/scheduled \
   -d '{
     "jobKey": "VALIDATE_READY_PUBLICATIONS",
     "dryRun": true,
+    "force": false
+  }'
+```
+
+Exemple d'execution reelle :
+
+```bash
+curl -X POST http://localhost:3000/api/jobs/scheduled \
+  -H "Authorization: Bearer local-scheduler-token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobKey": "ATTEMPT_AUTOMATIC_PUBLICATIONS",
+    "dryRun": false,
     "force": false
   }'
 ```

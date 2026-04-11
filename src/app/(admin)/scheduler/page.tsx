@@ -6,10 +6,11 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SimpleTable } from "@/components/tables/simple-table";
+import { requireAdmin } from "@/lib/auth";
 import { formatDateTime, formatStatusLabel } from "@/lib/format";
 import { asStringValue } from "@/lib/validation";
-import { requireAdmin } from "@/lib/auth";
-import { getScheduledJobDefinitions, getScheduledJobRuns } from "@/services/scheduler/scheduled-job-service";
+import { getRecentScheduledJobAlerts, getScheduledJobDefinitions, getScheduledJobRuns } from "@/services/scheduler/scheduled-job-service";
+import { formatExecutionWindow } from "@/services/scheduler/scheduled-jobs";
 
 import { runScheduledJobAction } from "./actions";
 
@@ -22,12 +23,12 @@ function getRunSummaryText(summary: unknown) {
   const totals = typeof candidate.totals === "object" && candidate.totals !== null ? (candidate.totals as Record<string, unknown>) : null;
 
   if (!totals) {
-    return "Execution terminee sans resume chiffre.";
+    return typeof candidate.message === "string" ? candidate.message : "Execution terminee sans resume chiffre.";
   }
 
   return Object.entries(totals)
     .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" � ");
+    .join(" ï¿½ ");
 }
 
 export default async function SchedulerPage({
@@ -41,7 +42,11 @@ export default async function SchedulerPage({
   const message = asStringValue(params.message);
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
 
-  const [definitions, runs] = await Promise.all([getScheduledJobDefinitions(), getScheduledJobRuns(25)]);
+  const [definitions, runs, alerts] = await Promise.all([
+    getScheduledJobDefinitions(),
+    getScheduledJobRuns(25),
+    getRecentScheduledJobAlerts(6)
+  ]);
 
   return (
     <div className="space-y-6">
@@ -52,6 +57,29 @@ export default async function SchedulerPage({
       />
 
       {message ? <Notice tone={tone} message={message} /> : null}
+
+      {alerts.length ? (
+        <Panel
+          title="Alertes recentes"
+          description="Signalements locaux issus des derniers runs en echec ou ignores hors fenetre."
+        >
+          <div className="space-y-3">
+            {alerts.map((alert) => (
+              <div key={alert.id} className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={alert.status} />
+                  <p className="font-semibold text-slate-950">{formatStatusLabel(alert.jobKey)}</p>
+                  <p className="text-xs text-slate-500">{formatDateTime(alert.createdAt)}</p>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">{alert.errorMessage ?? getRunSummaryText(alert.summaryJson)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Declencheur : {alert.requestedBy?.name ?? formatStatusLabel(alert.trigger)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel
         title="Registre des jobs"
@@ -68,6 +96,7 @@ export default async function SchedulerPage({
                   </div>
                   <p className="text-sm text-slate-600">{job.description}</p>
                   <p className="text-xs text-slate-500">{job.caution}</p>
+                  <p className="text-xs text-slate-500">Fenetre d'execution : {formatExecutionWindow(job)}</p>
                   <p className="text-xs uppercase tracking-[0.18em] text-slate-400">{formatStatusLabel(job.key)}</p>
                 </div>
 

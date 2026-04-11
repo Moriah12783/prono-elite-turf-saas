@@ -16,7 +16,7 @@ import { getApiCustomConfig } from "@/services/publication/api-custom-config";
 import { publishPublicationJob, refreshPublicationJobStatus } from "@/services/publication/publication-service";
 import { getWordPressConfig } from "@/services/publication/wordpress-config";
 
-import { getScheduledJobDefinition, scheduledJobDefinitions } from "./scheduled-jobs";
+import { formatExecutionWindow, getScheduledJobDefinition, scheduledJobDefinitions } from "./scheduled-jobs";
 
 type RunScheduledJobInput = {
   jobKey: ScheduledJobKey;
@@ -30,6 +30,7 @@ type JsonRecord = Prisma.InputJsonObject;
 type ScheduledJobExecutionSummary = JsonRecord;
 
 const RUNNING_LOCK_WINDOW_MS = 15 * 60 * 1000;
+export const RUNNING_LOCK_WINDOW_MINUTES = RUNNING_LOCK_WINDOW_MS / (60 * 1000);
 const AUTO_MODES = new Set<PublicationMode>([
   PublicationMode.AUTO_DRAFT,
   PublicationMode.VALIDATED,
@@ -42,6 +43,17 @@ function getUtcDayStart(referenceDate = new Date()) {
 
 function getUtcDayEnd(dayStart: Date) {
   return new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function isWithinExecutionWindow(
+  now: Date,
+  windowUtc: {
+    startHour: number;
+    endHour: number;
+  }
+) {
+  const currentHour = now.getUTCHours();
+  return currentHour >= windowUtc.startHour && currentHour < windowUtc.endHour;
 }
 
 function getDefaultScheduledTarget() {
@@ -389,8 +401,58 @@ export async function getScheduledJobRuns(limit = 20) {
   });
 }
 
+export async function getRecentScheduledJobAlerts(limit = 5) {
+  const prisma = getPrisma();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  return prisma.scheduledJobRun.findMany({
+    where: {
+      OR: [
+        {
+          status: ScheduledJobRunStatus.FAILED,
+          createdAt: { gte: since }
+        },
+        {
+          status: ScheduledJobRunStatus.SKIPPED,
+          createdAt: { gte: since },
+          summaryJson: {
+            path: ["reason"],
+            equals: "outside_window"
+          }
+        }
+      ]
+    },
+    include: {
+      requestedBy: {
+        select: {
+          name: true,
+          email: true
+        }
+      }
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: limit
+  });
+}
+
 export function getScheduledJobDefinitions() {
   return scheduledJobDefinitions;
+}
+
+export function getScheduledJobGuardrails(jobKey: ScheduledJobKey) {
+  const definition = getScheduledJobDefinition(jobKey);
+
+  if (!definition) {
+    return null;
+  }
+
+  return {
+    executionWindowUtc: formatExecutionWindow(definition),
+    runningLockWindowMinutes: RUNNING_LOCK_WINDOW_MINUTES,
+    duplicateProtection: "one-successful-real-run-per-day",
+    outsideWindowPolicy: "skip-real-runs",
+    dryRunAvailable: true
+  };
 }
 
 export async function runScheduledJob(input: RunScheduledJobInput) {
@@ -403,7 +465,8 @@ export async function runScheduledJob(input: RunScheduledJobInput) {
 
   const dryRun = input.dryRun ?? true;
   const force = input.force ?? false;
-  const dayStart = getUtcDayStart();
+  const now = new Date();
+  const dayStart = getUtcDayStart(now);
   const runningThreshold = new Date(Date.now() - RUNNING_LOCK_WINDOW_MS);
 
   const runningJob = await prisma.scheduledJobRun.findFirst({
@@ -418,6 +481,49 @@ export async function runScheduledJob(input: RunScheduledJobInput) {
 
   if (runningJob) {
     throw new Error("Ce job est deja en cours d'execution. Attendez la fin du run precedent avant de relancer.");
+  }
+
+  if (!dryRun && !force && !isWithinExecutionWindow(now, definition.executionWindowUtc)) {
+    const skippedRun = await prisma.scheduledJobRun.create({
+      data: {
+        jobKey: input.jobKey,
+        trigger: input.trigger,
+        runDate: dayStart,
+        dryRun: false,
+        status: ScheduledJobRunStatus.SKIPPED,
+        requestedById: input.actorId,
+        finishedAt: now,
+        summaryJson: {
+          reason: "outside_window",
+          message: `Execution ignoree hors fenetre autorisee (${formatExecutionWindow(definition)}).`,
+          attemptedAt: now.toISOString()
+        }
+      }
+    });
+
+    if (input.actorId) {
+      await createAuditLog({
+        actorId: input.actorId,
+        actionType: AuditActionType.VALIDATE,
+        entityType: AuditEntityType.SCHEDULED_JOB_RUN,
+        entityId: skippedRun.id,
+        metadataJson: {
+          jobKey: input.jobKey,
+          trigger: input.trigger,
+          dryRun: false,
+          status: skippedRun.status,
+          reason: "outside_window",
+          executionWindow: formatExecutionWindow(definition)
+        }
+      });
+    }
+
+    return {
+      run: skippedRun,
+      summary: skippedRun.summaryJson,
+      skipped: true,
+      message: `Execution ignoree : en dehors de la fenetre ${formatExecutionWindow(definition)}.`
+    };
   }
 
   if (!force && !dryRun) {
