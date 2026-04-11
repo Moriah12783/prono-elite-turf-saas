@@ -487,6 +487,76 @@ export async function getScheduledJobOverview() {
   });
 }
 
+function isSameUtcDay(left: Date, right: Date) {
+  return (
+    left.getUTCFullYear() === right.getUTCFullYear() &&
+    left.getUTCMonth() === right.getUTCMonth() &&
+    left.getUTCDate() === right.getUTCDate()
+  );
+}
+
+export async function getSchedulerGlobalAttentionStatus() {
+  const overview = await getScheduledJobOverview();
+  const now = new Date();
+
+  const missingExpectedRuns = overview.filter((job) => {
+    const windowClosed = now.getUTCHours() >= job.executionWindowUtc.endHour;
+    const hasRunToday = job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false;
+
+    return windowClosed && !hasRunToday;
+  });
+
+  const criticalFailure = overview.find(
+    (job) =>
+      (job.key === ScheduledJobKey.VALIDATE_READY_PUBLICATIONS || job.key === ScheduledJobKey.ATTEMPT_AUTOMATIC_PUBLICATIONS) &&
+      job.recentFailureCount > 0
+  );
+
+  if (criticalFailure) {
+    return {
+      level: "blocked" as const,
+      title: "Bloque",
+      message: `Le pipeline quotidien demande une intervention : ${criticalFailure.label} a rencontre un echec recent.`,
+      details: [`${criticalFailure.label} : ${criticalFailure.recentFailureCount} echec(s) recent(s).`]
+    };
+  }
+
+  if (missingExpectedRuns.length > 0) {
+    return {
+      level: "alert" as const,
+      title: "Alerte",
+      message: "Au moins un job attendu aujourd'hui n'a pas encore ete constate apres sa fenetre d'execution.",
+      details: missingExpectedRuns.map((job) => `${job.label} : aucun run constate aujourd'hui.`)
+    };
+  }
+
+  const warningJobs = overview.filter(
+    (job) => job.recentFailureCount > 0 || job.recentOutsideWindowSkipCount > 0 || job.lastStatus === ScheduledJobRunStatus.SKIPPED
+  );
+
+  if (warningJobs.length > 0) {
+    return {
+      level: "alert" as const,
+      title: "Alerte",
+      message: "Le scheduler reste operationnel, mais certains signaux recents demandent une verification admin.",
+      details: warningJobs.map((job) => {
+        if (job.recentFailureCount > 0) {
+          return `${job.label} : ${job.recentFailureCount} echec(s) recent(s).`;
+        }
+
+        return `${job.label} : skip hors fenetre ou execution a surveiller.`;
+      })
+    };
+  }
+
+  return {
+    level: "ok" as const,
+    title: "OK",
+    message: "Le pipeline quotidien est sain a ce stade : aucun blocage critique recent n'a ete detecte.",
+    details: ["Les signaux recents du scheduler restent conformes aux garde-fous du MVP."]
+  };
+}
+
 export function getScheduledJobGuardrails(jobKey: ScheduledJobKey) {
   const definition = getScheduledJobDefinition(jobKey);
 

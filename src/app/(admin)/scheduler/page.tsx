@@ -14,7 +14,8 @@ import {
   getRecentScheduledJobAlerts,
   getScheduledJobDefinitions,
   getScheduledJobOverview,
-  getScheduledJobRuns
+  getScheduledJobRuns,
+  getSchedulerGlobalAttentionStatus
 } from "@/services/scheduler/scheduled-job-service";
 import { formatExecutionWindow, formatRecommendedMode } from "@/services/scheduler/scheduled-jobs";
 
@@ -89,6 +90,18 @@ function getCardClasses(tone: "healthy" | "warning" | "critical" | "neutral") {
   return "border-slate-200 bg-slate-50";
 }
 
+function getGlobalClasses(level: "ok" | "alert" | "blocked") {
+  if (level === "ok") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  }
+
+  if (level === "alert") {
+    return "border-amber-200 bg-amber-50 text-amber-900";
+  }
+
+  return "border-rose-200 bg-rose-50 text-rose-900";
+}
+
 export default async function SchedulerPage({
   searchParams
 }: {
@@ -100,9 +113,10 @@ export default async function SchedulerPage({
   const message = asStringValue(params.message);
   const tone = asStringValue(params.tone) === "success" ? "success" : "error";
 
-  const [definitions, overview, runs, alerts] = await Promise.all([
+  const [definitions, overview, globalAttention, runs, alerts] = await Promise.all([
     getScheduledJobDefinitions(),
     getScheduledJobOverview(),
+    getSchedulerGlobalAttentionStatus(),
     getScheduledJobRuns(25),
     getRecentScheduledJobAlerts(6)
   ]);
@@ -116,6 +130,29 @@ export default async function SchedulerPage({
       />
 
       {message ? <Notice tone={tone} message={message} /> : null}
+
+      <div className={`rounded-3xl border p-5 ${getGlobalClasses(globalAttention.level)}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em]">Attention aujourd'hui</p>
+            <h2 className="mt-1 text-2xl font-semibold">{globalAttention.title}</h2>
+            <p className="mt-2 text-sm">{globalAttention.message}</p>
+          </div>
+          <ActionPolicyBadge
+            label={globalAttention.title}
+            tone={globalAttention.level === "ok" ? "allowed" : globalAttention.level === "alert" ? "info" : "blocked"}
+          />
+        </div>
+        {globalAttention.details.length ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {globalAttention.details.map((detail) => (
+              <span key={detail} className="rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-slate-700">
+                {detail}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <Panel
         title="Vue synthese"
