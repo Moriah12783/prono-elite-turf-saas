@@ -345,6 +345,42 @@ curl -X POST http://localhost:3000/api/jobs/scheduled \
   }'
 ```
 
+### Premier branchement cron externe prudent
+
+Pour un premier passage du test manuel vers un declenchement quotidien externe, la recommandation MVP est :
+
+1. `PREPARE_DAILY_PUBLICATIONS` en `dryRun=true`
+2. `VALIDATE_READY_PUBLICATIONS` en `dryRun=false`
+3. `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=true`
+
+Exemples de cron simples :
+
+```cron
+# Preparation prudente
+5 5 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"PREPARE_DAILY_PUBLICATIONS","dryRun":true,"force":false}'
+
+# Controle metier reel
+*/15 9-11 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"VALIDATE_READY_PUBLICATIONS","dryRun":false,"force":false}'
+
+# Publication automatique en observation
+*/30 12-17 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"ATTEMPT_AUTOMATIC_PUBLICATIONS","dryRun":true,"force":false}'
+```
+
+Ces appels externes respectent toujours :
+
+- les fenetres horaires
+- l'anti-doublon quotidien
+- le verrou anti-concurrence
+- les alertes visibles dans `/scheduler`
+
+Pour une mise en route progressive :
+
+1. commencer avec la configuration prudente ci-dessus
+2. verifier pendant plusieurs jours les runs et alertes dans `/scheduler`
+3. passer `PREPARE_DAILY_PUBLICATIONS` en reel seulement apres validation des brouillons auto
+4. passer `ATTEMPT_AUTOMATIC_PUBLICATIONS` en reel seulement une fois la supervision stable
+5. conserver `force=false` par defaut dans les appels cron externes
+
 ## Strategie de relations et suppressions
 
 - les relations critiques vers `races` sont protegees en base par `ON DELETE RESTRICT`

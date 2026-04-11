@@ -235,3 +235,27 @@ Pour un premier branchement externe simple :
 2. activer `VALIDATE_READY_PUBLICATIONS` en `dryRun=false`
 3. laisser `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=true` pendant quelques jours
 4. passer ensuite progressivement la publication automatique en reel
+
+## Premier cron externe recommande
+
+Pour un premier branchement quotidien prudent et facilement testable :
+
+- `05:05 UTC` : `PREPARE_DAILY_PUBLICATIONS` en `dryRun=true`
+- `*/15 9-11 * * *` : `VALIDATE_READY_PUBLICATIONS` en `dryRun=false`
+- `*/30 12-17 * * *` : `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=true`
+
+Pourquoi cette combinaison :
+
+- elle laisse la preparation en observation
+- elle automatise le controle metier sans risque de diffusion externe
+- elle garde la publication automatique en simulation tant que la supervision n'est pas stabilisee
+
+## Conditions de passage a l'etape suivante
+
+Avant d'augmenter l'automatisation reelle, verifier pendant plusieurs jours :
+
+1. que les runs API remontent bien dans `/scheduler`
+2. qu'il n'y a pas de `FAILED` recurrent sur `VALIDATE_READY_PUBLICATIONS`
+3. que les `SKIPPED` hors fenetre restent exceptionnels
+4. que les donnees de publication creees ou controlees sont coherentes
+5. que les providers reels eventuels sont correctement configures avant toute tentative automatique reelle

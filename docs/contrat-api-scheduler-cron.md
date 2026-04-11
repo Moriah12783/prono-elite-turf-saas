@@ -209,6 +209,139 @@ Exemple toutes les 15 minutes pour le controle :
   - l'anti-doublon
   - le verrou anti-concurrence
 
+## Premier branchement externe prudent
+
+Pour sortir du test manuel sans activer toute l'automatisation d'un coup, la premiere configuration conseillee est la suivante :
+
+1. `PREPARE_DAILY_PUBLICATIONS` en `dryRun=true`
+2. `VALIDATE_READY_PUBLICATIONS` en `dryRun=false`
+3. `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=true`
+
+Pourquoi :
+
+- la preparation reste observable sans creer de brouillons non desires
+- la validation peut tourner en reel car elle ne publie rien a l'exterieur
+- la tentative automatique reste sous surveillance sans diffusion reelle
+
+## Appels API recommandes
+
+### 1. PREPARE_DAILY_PUBLICATIONS en mode prudent
+
+```bash
+curl -X POST http://localhost:3000/api/jobs/scheduled \
+  -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobKey": "PREPARE_DAILY_PUBLICATIONS",
+    "dryRun": true,
+    "force": false
+  }'
+```
+
+### 2. VALIDATE_READY_PUBLICATIONS en execution reelle
+
+```bash
+curl -X POST http://localhost:3000/api/jobs/scheduled \
+  -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobKey": "VALIDATE_READY_PUBLICATIONS",
+    "dryRun": false,
+    "force": false
+  }'
+```
+
+### 3. ATTEMPT_AUTOMATIC_PUBLICATIONS en mode prudent
+
+```bash
+curl -X POST http://localhost:3000/api/jobs/scheduled \
+  -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jobKey": "ATTEMPT_AUTOMATIC_PUBLICATIONS",
+    "dryRun": true,
+    "force": false
+  }'
+```
+
+## Exemples de crons prets a l'emploi
+
+### Variante Unix / Linux
+
+```cron
+# PREPARE_DAILY_PUBLICATIONS en dryRun a 05:05 UTC
+5 5 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"PREPARE_DAILY_PUBLICATIONS","dryRun":true,"force":false}'
+
+# VALIDATE_READY_PUBLICATIONS en reel toutes les 15 min entre 09:00 et 11:59 UTC
+*/15 9-11 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"VALIDATE_READY_PUBLICATIONS","dryRun":false,"force":false}'
+
+# ATTEMPT_AUTOMATIC_PUBLICATIONS en dryRun toutes les 30 min entre 12:00 et 17:59 UTC
+*/30 12-17 * * * curl -sS -X POST https://ton-domaine/api/jobs/scheduled -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" -H "Content-Type: application/json" -d '{"jobKey":"ATTEMPT_AUTOMATIC_PUBLICATIONS","dryRun":true,"force":false}'
+```
+
+### Variante avec scripts shell dedies
+
+Exemple pour limiter la complexite dans la crontab :
+
+```bash
+#!/usr/bin/env bash
+set -eu
+
+curl -sS -X POST "https://ton-domaine/api/jobs/scheduled" \
+  -H "Authorization: Bearer ${SCHEDULER_API_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d '{"jobKey":"VALIDATE_READY_PUBLICATIONS","dryRun":false,"force":false}'
+```
+
+Puis dans la crontab :
+
+```cron
+*/15 9-11 * * * /opt/prono-elite-turf/run-validate-ready-publications.sh
+```
+
+## Ce que le cron externe ne contourne jamais
+
+Meme declenche via API externe, le scheduler conserve :
+
+- les fenetres horaires UTC
+- l'anti-doublon quotidien sur les runs reels reussis
+- le verrou anti-concurrence sur les jobs deja `RUNNING`
+- la remontee des `FAILED` et `SKIPPED` dans `/scheduler`
+
+Autrement dit, un cron externe simplifie le declenchement, mais ne prend pas la main sur la logique metier de protection.
+
+## Strategie progressive vers plus d'automatisation
+
+### Phase 1 : observation guidee
+
+- `PREPARE_DAILY_PUBLICATIONS` : `dryRun=true`
+- `VALIDATE_READY_PUBLICATIONS` : `dryRun=false`
+- `ATTEMPT_AUTOMATIC_PUBLICATIONS` : `dryRun=true`
+
+Objectif :
+
+- valider que les runs API apparaissent bien dans `/scheduler`
+- confirmer que les fenetres et les alertes se comportent comme attendu
+
+### Phase 2 : preparation reelle
+
+- passer `PREPARE_DAILY_PUBLICATIONS` en `dryRun=false`
+- garder `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=true`
+
+Objectif :
+
+- produire les brouillons automatiquement
+- conserver la diffusion automatique sous observation
+
+### Phase 3 : automatisation controlee
+
+- passer `ATTEMPT_AUTOMATIC_PUBLICATIONS` en `dryRun=false`
+- seulement apres plusieurs jours stables sans anomalie critique
+
+Objectif :
+
+- activer une boucle quotidienne complete, tout en gardant la supervision admin au centre
+
 ## Recommandation MVP
 
 Commencer par :

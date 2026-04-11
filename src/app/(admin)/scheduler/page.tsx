@@ -30,6 +30,10 @@ const PERIOD_OPTIONS: Array<{ value: SchedulerPeriod; label: string }> = [
   { value: "7d", label: "7 jours" }
 ];
 
+function getPeriodLabel(period: SchedulerPeriod) {
+  return PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period;
+}
+
 function getRunSummaryText(summary: unknown) {
   if (!summary || typeof summary !== "object") {
     return "Aucun resume disponible.";
@@ -123,6 +127,14 @@ function getSafeExpectedSummary(
   };
 }
 
+function getFreshnessSupportText(hasObservedRun: boolean, period: SchedulerPeriod) {
+  if (!hasObservedRun) {
+    return `Aucun run observe sur ${getPeriodLabel(period).toLowerCase()}.`;
+  }
+
+  return "Le bandeau s'appuie sur les runs les plus recents de la periode selectionnee.";
+}
+
 export default async function SchedulerPage({
   searchParams
 }: {
@@ -147,6 +159,8 @@ export default async function SchedulerPage({
     globalAttention.expectedSummary ?? globalAttention.expectedToday,
     period === "today" ? "Jobs attendus aujourd'hui" : `Jobs couverts sur ${period}`
   );
+  const periodLabel = getPeriodLabel(period);
+  const hasObservedRun = Boolean(globalAttention.lastObservedRun);
 
   return (
     <div className="space-y-6">
@@ -185,7 +199,9 @@ export default async function SchedulerPage({
           <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
             <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Derniere supervision</p>
             <p className="mt-2 font-semibold text-slate-950">{formatDateTime(globalAttention.computedAt)}</p>
-            <p className="mt-1 text-xs">Dernier run observe : {globalAttention.lastObservedRun ? formatDateTime(globalAttention.lastObservedRun) : "Aucun"}</p>
+            <p className="mt-1 text-xs">
+              Dernier run observe : {globalAttention.lastObservedRun ? formatDateTime(globalAttention.lastObservedRun) : "Aucun sur cette periode"}
+            </p>
           </div>
           <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
             <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Fraicheur</p>
@@ -195,14 +211,16 @@ export default async function SchedulerPage({
                 tone={globalAttention.freshness.tone === "fresh" ? "allowed" : "info"}
               />
             </div>
-            <p className="mt-1 text-xs">Le bandeau s'appuie sur les runs les plus recents de la periode selectionnee.</p>
+            <p className="mt-1 text-xs">{getFreshnessSupportText(hasObservedRun, period)}</p>
           </div>
           <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
             <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{expectedSummary.label}</p>
             <p className="mt-2 font-semibold text-slate-950">
               {expectedSummary.executed} executes / {expectedSummary.total} attendus
             </p>
-            <p className="mt-1 text-xs">Restants : {expectedSummary.pending}</p>
+            <p className="mt-1 text-xs">
+              {expectedSummary.pending > 0 ? `Restants : ${expectedSummary.pending}` : "Aucun job restant sur cette periode."}
+            </p>
           </div>
         </div>
         {globalAttention.details.length ? (
@@ -218,7 +236,7 @@ export default async function SchedulerPage({
 
       <Panel
         title="Vue synthese"
-        description={`Lecture rapide de l'etat des jobs sur la periode ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
+        description={`Lecture rapide de l'etat des jobs sur la periode ${periodLabel}.`}
       >
         <div className="grid gap-4 xl:grid-cols-3">
           {overview.map((job) => {
@@ -266,7 +284,7 @@ export default async function SchedulerPage({
       {alerts.length ? (
         <Panel
           title="Alertes recentes"
-          description={`Signalements locaux sur ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
+          description={`Signalements locaux sur ${periodLabel}.`}
         >
           <div className="space-y-3">
             {alerts.map((alert) => (
@@ -326,64 +344,73 @@ export default async function SchedulerPage({
 
       <Panel
         title="Derniers runs"
-        description={`Historique des runs sur ${PERIOD_OPTIONS.find((option) => option.value === period)?.label ?? period}.`}
+        description={`Historique des runs sur ${periodLabel}.`}
       >
-        <SimpleTable
-          rows={runs}
-          columns={[
-            {
-              key: "jobKey",
-              header: "Job",
-              render: (row) => (
-                <div>
-                  <p className="font-semibold text-slate-950">{formatStatusLabel(row.jobKey)}</p>
-                  <p className="text-xs text-slate-500">{row.dryRun ? "Simulation" : "Execution reelle"}</p>
-                </div>
-              )
-            },
-            {
-              key: "status",
-              header: "Statut",
-              render: (row) => (
-                <div className="space-y-2">
-                  <StatusBadge status={row.status} />
-                  <p className="text-xs text-slate-500">{formatStatusLabel(row.trigger)}</p>
-                </div>
-              )
-            },
-            {
-              key: "timing",
-              header: "Horodatages",
-              render: (row) => (
-                <div className="space-y-1 text-sm text-slate-600">
-                  <p>Run date : {formatDateTime(row.runDate)}</p>
-                  <p>Debut : {row.startedAt ? formatDateTime(row.startedAt) : "-"}</p>
-                  <p>Fin : {row.finishedAt ? formatDateTime(row.finishedAt) : "-"}</p>
-                </div>
-              )
-            },
-            {
-              key: "summary",
-              header: "Resume",
-              render: (row) => (
-                <div>
-                  <p className="text-sm text-slate-600">{getRunSummaryText(row.summaryJson)}</p>
-                  {row.errorMessage ? <p className="mt-1 text-xs text-rose-600">{row.errorMessage}</p> : null}
-                </div>
-              )
-            },
-            {
-              key: "actor",
-              header: "Declencheur",
-              render: (row) => (
-                <div className="text-sm text-slate-600">
-                  <p>{row.requestedBy?.name ?? "Systeme"}</p>
-                  <p className="text-xs text-slate-500">{row.requestedBy?.email ?? formatStatusLabel(row.trigger)}</p>
-                </div>
-              )
-            }
-          ]}
-        />
+        {runs.length ? (
+          <SimpleTable
+            rows={runs}
+            columns={[
+              {
+                key: "jobKey",
+                header: "Job",
+                render: (row) => (
+                  <div>
+                    <p className="font-semibold text-slate-950">{formatStatusLabel(row.jobKey)}</p>
+                    <p className="text-xs text-slate-500">{row.dryRun ? "Simulation" : "Execution reelle"}</p>
+                  </div>
+                )
+              },
+              {
+                key: "status",
+                header: "Statut",
+                render: (row) => (
+                  <div className="space-y-2">
+                    <StatusBadge status={row.status} />
+                    <p className="text-xs text-slate-500">{formatStatusLabel(row.trigger)}</p>
+                  </div>
+                )
+              },
+              {
+                key: "timing",
+                header: "Horodatages",
+                render: (row) => (
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <p>Run date : {formatDateTime(row.runDate)}</p>
+                    <p>Debut : {row.startedAt ? formatDateTime(row.startedAt) : "-"}</p>
+                    <p>Fin : {row.finishedAt ? formatDateTime(row.finishedAt) : "-"}</p>
+                  </div>
+                )
+              },
+              {
+                key: "summary",
+                header: "Resume",
+                render: (row) => (
+                  <div>
+                    <p className="text-sm text-slate-600">{getRunSummaryText(row.summaryJson)}</p>
+                    {row.errorMessage ? <p className="mt-1 text-xs text-rose-600">{row.errorMessage}</p> : null}
+                  </div>
+                )
+              },
+              {
+                key: "actor",
+                header: "Declencheur",
+                render: (row) => (
+                  <div className="text-sm text-slate-600">
+                    <p>{row.requestedBy?.name ?? "Systeme"}</p>
+                    <p className="text-xs text-slate-500">{row.requestedBy?.email ?? formatStatusLabel(row.trigger)}</p>
+                  </div>
+                )
+              }
+            ]}
+          />
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-600">
+            <p className="font-medium text-slate-900">Aucun run sur {periodLabel.toLowerCase()}.</p>
+            <p className="mt-1">
+              Lance une simulation ou une execution depuis le registre des jobs pour commencer a alimenter la supervision.
+            </p>
+          </div>
+        )}
       </Panel>
     </div>
   );
