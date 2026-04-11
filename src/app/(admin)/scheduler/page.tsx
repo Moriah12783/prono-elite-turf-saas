@@ -143,6 +143,30 @@ export default async function SchedulerPage({
             tone={globalAttention.level === "ok" ? "allowed" : globalAttention.level === "alert" ? "info" : "blocked"}
           />
         </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
+            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Derniere supervision</p>
+            <p className="mt-2 font-semibold text-slate-950">{formatDateTime(globalAttention.computedAt)}</p>
+            <p className="mt-1 text-xs">Dernier run observe : {globalAttention.lastObservedRun ? formatDateTime(globalAttention.lastObservedRun) : "Aucun"}</p>
+          </div>
+          <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
+            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Fraicheur</p>
+            <div className="mt-2 flex items-center gap-2">
+              <ActionPolicyBadge
+                label={globalAttention.freshness.label}
+                tone={globalAttention.freshness.tone === "fresh" ? "allowed" : "info"}
+              />
+            </div>
+            <p className="mt-1 text-xs">Le bandeau s'appuie sur les runs les plus recents du scheduler.</p>
+          </div>
+          <div className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700">
+            <p className="text-[11px] uppercase tracking-[0.12em] text-slate-500">Jobs attendus aujourd'hui</p>
+            <p className="mt-2 font-semibold text-slate-950">
+              {globalAttention.expectedToday.executed} executes / {globalAttention.expectedToday.total} attendus
+            </p>
+            <p className="mt-1 text-xs">Restants : {globalAttention.expectedToday.pending}</p>
+          </div>
+        </div>
         {globalAttention.details.length ? (
           <div className="mt-4 flex flex-wrap gap-2">
             {globalAttention.details.map((detail) => (
@@ -326,3 +350,4 @@ export default async function SchedulerPage({
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import {
+﻿import {
   ApprovalStatus,
   AuditActionType,
   AuditEntityType,
@@ -498,6 +498,29 @@ function isSameUtcDay(left: Date, right: Date) {
 export async function getSchedulerGlobalAttentionStatus() {
   const overview = await getScheduledJobOverview();
   const now = new Date();
+  const lastObservedRun =
+    overview
+      .map((job) => job.lastRun?.createdAt ?? null)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => right.getTime() - left.getTime())[0] ?? null;
+  const freshnessMinutes = lastObservedRun ? Math.floor((now.getTime() - lastObservedRun.getTime()) / (60 * 1000)) : null;
+  const freshness = !lastObservedRun
+    ? {
+        label: "Aucune supervision recente",
+        tone: "stale" as const
+      }
+    : freshnessMinutes !== null && freshnessMinutes <= 90
+      ? {
+          label: "Frais",
+          tone: "fresh" as const
+        }
+      : {
+          label: "A rafraichir",
+          tone: "stale" as const
+        };
+  const expectedToday = overview.filter((job) => now.getUTCHours() >= job.executionWindowUtc.startHour);
+  const executedToday = expectedToday.filter((job) => (job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false));
+  const pendingToday = expectedToday.filter((job) => !(job.lastRun ? isSameUtcDay(job.lastRun.createdAt, now) : false));
 
   const missingExpectedRuns = overview.filter((job) => {
     const windowClosed = now.getUTCHours() >= job.executionWindowUtc.endHour;
@@ -517,7 +540,15 @@ export async function getSchedulerGlobalAttentionStatus() {
       level: "blocked" as const,
       title: "Bloque",
       message: `Le pipeline quotidien demande une intervention : ${criticalFailure.label} a rencontre un echec recent.`,
-      details: [`${criticalFailure.label} : ${criticalFailure.recentFailureCount} echec(s) recent(s).`]
+      details: [`${criticalFailure.label} : ${criticalFailure.recentFailureCount} echec(s) recent(s).`],
+      computedAt: now,
+      lastObservedRun,
+      freshness,
+      expectedToday: {
+        total: expectedToday.length,
+        executed: executedToday.length,
+        pending: pendingToday.length
+      }
     };
   }
 
@@ -526,7 +557,15 @@ export async function getSchedulerGlobalAttentionStatus() {
       level: "alert" as const,
       title: "Alerte",
       message: "Au moins un job attendu aujourd'hui n'a pas encore ete constate apres sa fenetre d'execution.",
-      details: missingExpectedRuns.map((job) => `${job.label} : aucun run constate aujourd'hui.`)
+      details: missingExpectedRuns.map((job) => `${job.label} : aucun run constate aujourd'hui.`),
+      computedAt: now,
+      lastObservedRun,
+      freshness,
+      expectedToday: {
+        total: expectedToday.length,
+        executed: executedToday.length,
+        pending: pendingToday.length
+      }
     };
   }
 
@@ -545,7 +584,15 @@ export async function getSchedulerGlobalAttentionStatus() {
         }
 
         return `${job.label} : skip hors fenetre ou execution a surveiller.`;
-      })
+      }),
+      computedAt: now,
+      lastObservedRun,
+      freshness,
+      expectedToday: {
+        total: expectedToday.length,
+        executed: executedToday.length,
+        pending: pendingToday.length
+      }
     };
   }
 
@@ -553,7 +600,15 @@ export async function getSchedulerGlobalAttentionStatus() {
     level: "ok" as const,
     title: "OK",
     message: "Le pipeline quotidien est sain a ce stade : aucun blocage critique recent n'a ete detecte.",
-    details: ["Les signaux recents du scheduler restent conformes aux garde-fous du MVP."]
+    details: ["Les signaux recents du scheduler restent conformes aux garde-fous du MVP."],
+    computedAt: now,
+    lastObservedRun,
+    freshness,
+    expectedToday: {
+      total: expectedToday.length,
+      executed: executedToday.length,
+      pending: pendingToday.length
+    }
   };
 }
 
@@ -766,3 +821,4 @@ export async function runScheduledJob(input: RunScheduledJobInput) {
     throw new Error(message);
   }
 }
+
