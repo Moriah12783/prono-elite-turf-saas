@@ -274,6 +274,7 @@ Le plan quotidien d''orchestration recommande est documente ici :
 
 - [docs/plan-quotidien-scheduler-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\plan-quotidien-scheduler-prono-elite-turf.md)
 - [docs/plan-exploitation-semi-automatique-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\plan-exploitation-semi-automatique-prono-elite-turf.md)
+- [docs/runbook-admin-matin-scheduler-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\runbook-admin-matin-scheduler-prono-elite-turf.md)
 
 Ce document couvre :
 
@@ -286,6 +287,10 @@ Ce document couvre :
 Le plan d'exploitation semi-automatique controle sur quelques jours est documente ici :
 
 - [docs/plan-exploitation-semi-automatique-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\plan-exploitation-semi-automatique-prono-elite-turf.md)
+
+Le runbook admin tres court a suivre chaque matin est documente ici :
+
+- [docs/runbook-admin-matin-scheduler-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\runbook-admin-matin-scheduler-prono-elite-turf.md)
 ### Contrat API cron / scheduler
 
 Le contrat d'appel complet est documente ici :
