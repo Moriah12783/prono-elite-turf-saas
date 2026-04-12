@@ -286,6 +286,7 @@ Ce document couvre :
 Le contrat d'appel complet est documente ici :
 
 - [docs/contrat-api-scheduler-cron.md](C:\Users\HP\Documents\New%20project\docs\contrat-api-scheduler-cron.md)
+- [docs/windows-task-scheduler-prono-elite-turf.md](C:\Users\HP\Documents\New%20project\docs\windows-task-scheduler-prono-elite-turf.md)
 
 L'endpoint expose maintenant :
 
@@ -380,6 +381,10 @@ Pour une mise en route progressive :
 3. passer `PREPARE_DAILY_PUBLICATIONS` en reel seulement apres validation des brouillons auto
 4. passer `ATTEMPT_AUTOMATIC_PUBLICATIONS` en reel seulement une fois la supervision stable
 5. conserver `force=false` par defaut dans les appels cron externes
+
+Sous Windows, un script reutilisable est disponible pour simplifier le Planificateur de taches :
+
+- [invoke-scheduler-job.ps1](C:\Users\HP\Documents\New%20project\scripts\invoke-scheduler-job.ps1)
 
 ## Strategie de relations et suppressions
 
